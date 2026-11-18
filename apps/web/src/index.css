@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens — planning/Design.md §3. Nothing below may be invented at the component level. */
+:root {
+  --brand-50: #eef0fc;
+  --brand-100: #dce1f8;
+  --brand-200: #bbc4f0;
+  --brand-300: #8e9ce4;
+  --brand-400: #5b6ed0;
+  --brand-500: #2b3fb8;
+  --brand-600: #1f319d;
+  --brand-700: #182a85;
+  --brand-800: #12206b;
+  --brand-900: #0c1750;
+
+  --ink-900: #0b1020;
+  --ink-800: #1a2136;
+  --ink-700: #2a3142;
+  --ink-600: #414a5e;
+  --ink-500: #5a6273;
+  --ink-400: #7c8496;
+  --ink-300: #a2a9b8;
+  --ink-200: #c8cdd8;
+  --ink-100: #e3e6ed;
+
+  --canvas: #f7f8fa;
+  --canvas-admin: #f4f5f8;
+  --surface: #ffffff;
+  --surface-sunken: #f1f3f7;
+
+  --line: rgba(11, 16, 32, 0.08);
+  --line-strong: rgba(11, 16, 32, 0.16);
+  --line-bright: rgba(255, 255, 255, 0.6);
+
+  --success-fg: #0e7c4a;
+  --success-bg: #e6f4ec;
+  --warning-fg: #9a5200;
+  --warning-bg: #fdf1e0;
+  --danger-fg: #b3261e;
+  --danger-bg: #fbeae8;
+  --info-fg: var(--brand-700);
+  --info-bg: var(--brand-50);
+
+  --b2b-fg: #8a4b00;
+  --b2b-bg: #fdf0db;
+  --b2b-line: #e9b769;
+
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-400);
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-body text-ink-700 antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numerals line up in every price, quantity and total. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-ink-900;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--brand-100);
+    color: var(--brand-900);
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  /* Inputs at 16px prevent iOS zoom (§10). */
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .hairline {
+    border: 1px solid var(--line);
+  }
+
+  .field-label {
+    @apply mb-1 block text-label text-ink-700;
+  }
+
+  .field-hint {
+    @apply mt-1 block text-caption text-ink-500;
+  }
+
+  .field-error {
+    @apply mt-1 block text-caption font-semibold text-danger-fg;
+  }
+
+  .table-head {
+    @apply text-micro uppercase tracking-[0.06em] text-ink-500;
+  }
+
+  /* Static skeleton: final geometry, no shimmer (§8). */
+  .skeleton {
+    @apply rounded-sm bg-ink-100;
+  }
+
+  /* Dialog scrim: a solid ink wash, not a gradient. */
+  .scrim {
+    background-color: rgba(11, 16, 32, 0.42);
+  }
+
+  /* Intentional image fallback: hairline texture + SKU, never a broken-image icon. */
+  .img-fallback {
+    background-color: var(--surface-sunken);
+    background-image: repeating-linear-gradient(
+      135deg,
+      transparent 0 7px,
+      rgba(11, 16, 32, 0.035) 7px 8px
+    );
+  }
+}

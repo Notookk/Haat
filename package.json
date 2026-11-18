@@ -1,0 +1,22 @@
+{
+  "name": "haat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HAAT — India's Retail & Wholesale Marketplace (modular monolith monorepo)",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @haat/api --filter @haat/web dev",
+    "dev:api": "pnpm --filter @haat/api dev",
+    "dev:web": "pnpm --filter @haat/web dev",
+    "build": "pnpm --filter @haat/api build && pnpm --filter @haat/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "seed": "pnpm --filter @haat/api seed"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}
