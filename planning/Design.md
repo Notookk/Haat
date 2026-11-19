@@ -547,7 +547,7 @@ Never show a success toast for an action the user can already see succeeded in p
 | `QuotationCard` | unit price, min qty, validity countdown, accept/revise | countdown is static text | Expiry is a real deadline, not a fake timer |
 | `StatusTimeline` | fulfilment state machine, actor + timestamp | new step reveals once | No looping pulse on “current” |
 | `DataTable` | sticky header, sort, filter chips, column visibility, inline edit | scroll edge mask | Dense by default; no card fallback on desktop |
-| `KycReviewPane` | split view: submitted data / document viewer / decision bar | document zoom spring | Reviewer must see the document and the claim side-by-side |
+| `SellerApprovalPane` | split view: submitted registration / business data / decision bar | drawer reveal | Reviewer inspects merchant registration details and acts |
 | `AuditLogTable` | mono timestamps, actor, action, entity, IP | none | Immutable: no edit affordances at all |
 | `CommandPalette` | seller/admin only, `⌘K` / `Ctrl K` | `spring-sheet`, no bounce | Keyboard-first, no animation on keystroke |
 | `EmptyState` | icon, one sentence, one primary action | none | Never “Nothing here yet!” |

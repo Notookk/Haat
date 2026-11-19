@@ -120,9 +120,12 @@ graph TD
 3. **The Direct Manufacturer:**
    - **Profile:** Regional producers seeking direct-to-retailer and direct-to-consumer distribution without middlemen.
 
-### 4.3 Administrator Personas
-1. **Platform Operations Admin:** Monitors catalogue health, reviews reported listings, resolves customer-seller disputes, verifies seller credentials (KYC/GST).
-2. **Super Administrator:** Governs global platform configuration, system health, financial reconciliation parameters, role-based staff access, and security audit logs.
+### 4.3 Administrator Persona (Read-Only Marketplace Monitoring)
+1. **Marketplace Monitoring & Analytics Administrator:**
+   - **Role:** Strictly read-only monitoring, analytics, and surveillance.
+   - **Capabilities:** Admin can view buyer accounts, seller directory and business performance, individual seller analytics, orders, payment transactions, and platform-wide metrics.
+   - **Strict Constraints:** Admin cannot create, edit, or delete buyers or sellers; cannot approve or reject seller applications; cannot block or unblock sellers; cannot manage products or inventory; cannot modify prices or stock; cannot manage orders or deliveries; cannot modify transactions or initiate refunds. All write operations are rejected at the API middleware boundary with HTTP 403 `FORBIDDEN_READ_ONLY_ADMIN`.
+   - **Separation of Metrics:** Distinguishes Gross Merchandise Value (GMV), completed paid order value, and platform commission. Marketplace GMV is never conflated with platform revenue or profit.
 
 ---
 
@@ -286,7 +289,7 @@ stateDiagram-v2
 - **Verification Integrity:** Payments are never marked as completed based solely on client-side browser redirects. The backend verifies cryptographic webhook signatures and performs server-to-server payment status confirmation.
 
 ### 5.9 Seller Management & Store Operations
-- **Onboarding & KYC:** Business registration details, GSTIN, bank account information, store branding, and identity verification submission.
+- **Onboarding & Store Registration:** Business registration details, GSTIN, bank account information, store branding, and coverage area details.
 - **Inventory Management:** Low-stock threshold alerts, batch stock updates, reserve-against-order tracking.
 - **Fulfilment Center:** Centralized order inbox with filter tabs (New, In Progress, Scheduled Today, Completed).
 - **Delivery Configuration:** Slot capacity limits, cut-off hours, holiday calendar, delivery radius/pincode whitelist.
@@ -317,7 +320,7 @@ stateDiagram-v2
 | **FR-10** | Orders | Strict order status state machine enforcement with immutable audit logging | Critical |
 | **FR-11** | Orders | Historical order snapshot preservation for items, prices, taxes, and addresses | Critical |
 | **FR-12** | Payments | Modular payment processing with Razorpay, webhook verification, and refund state tracking | High |
-| **FR-13** | Admin | Seller KYC verification, catalogue moderation, dispute management, and audit inspection | High |
+| **FR-13** | Admin | Seller application approval, catalogue moderation, dispute management, and audit inspection | High |
 | **FR-14** | Reviews | Verified-purchase rating and review submission for products and seller stores | Medium |
 | **FR-15** | Notifications | In-app notifications and event dispatchers for order updates, chat, and quotes | Medium |
 
@@ -461,7 +464,7 @@ All requirements, architecture specifications, development rules, design systems
 | `planning/PRD.md` | **Canonical** | Product Requirements Document — vision, personas, functional & non-functional requirements, scheduled delivery model, bulk pricing tiers, RFQ workflows, order lifecycle, security, open business decisions. Contains the consolidated copies of every other document (Part II). |
 | `planning/Design.md` | **Canonical** | UI/UX, brand system, motion specification, component inventory, screen-by-screen design and the `apple-design` audit. Authored after consolidation — see Section 17.1. |
 | `planning/Memory.md` | **Pending** | Session continuity ledger — decisions, implementation state and next task. Must be created at the first completed task. |
-| ~~`planning/Architecture.md`~~ | Archived → §14 | Technical Architecture & Data Specifications: modular monolith, MongoDB collections, atomic slot reservation, Socket.IO chat, Redis caching, Razorpay flow. |
+| ~~`planning/Architecture.md`~~ | Archived → §14 | Technical Architecture & Data Specifications: modular monolith, MongoDB collections, atomic slot reservation, Socket.IO real-time communication, Razorpay flow. |
 | ~~`planning/Rules.md`~~ | Archived → §15 | Engineering Standards & AI Agent Rules: pnpm, strict TypeScript, thin controllers, paise integers, object-level authorization, no Docker/microservices. **Still binding.** |
 | ~~`planning/Task.md`~~ | Archived → §16 | Development Roadmap & Master Task Tracker, Phase 1 → Phase 10, task IDs, acceptance criteria, dependencies. **Still binding.** |
 | ~~`README.md`~~ | Archived → §13 | Repository landing page describing the documentation system and stack. |
@@ -470,8 +473,8 @@ All requirements, architecture specifications, development rules, design systems
 
 - **Frontend:** React 18+, Vite, TypeScript, Tailwind CSS, Shadcn/UI (Radix UI), Lucide React, React Router v6, TanStack Query v5, React Hook Form, Zod
 - **Backend:** Node.js (LTS), Express.js, TypeScript, REST API, Socket.IO v4, JWT authentication, Zod validation
-- **Database & ODM:** **MongoDB 7+ (Atlas), Mongoose 8** — *amended from PostgreSQL + Prisma in v2.2.0*
-- **Cache & Pub/Sub:** Redis (`ioredis`, `@socket.io/redis-adapter`)
+- **Database & ODM:** **MongoDB 7+ (Atlas), Mongoose 8** — *single persistent source of truth*
+- **Real-Time Communication:** Socket.IO v4 (direct Node.js/Express server communication, no Redis required)
 - **Payments:** Razorpay (modular provider adapter)
 - **Media Storage:** **Cloudinary** — signed direct uploads, responsive transformations, CDN delivery
 - **Package Manager:** `pnpm`
@@ -502,14 +505,14 @@ GSD Planning (Spec & Tasks)
 
 ### 14.1 Architecture Philosophy — The Modular Monolith
 
-A **single, highly disciplined Express.js + TypeScript backend** serves the API, backed by **one MongoDB database** (Mongoose ODM) that owns all commercial state, integrated with **Socket.IO** for real-time messaging and **Redis** for shared session/cache/pub-sub state. **Cloudinary** is the only media provider. A **React SPA built with Vite + TypeScript** provides the Buyer, Seller and Admin interfaces.
+A **single, highly disciplined Express.js + TypeScript backend** serves the API, backed by **one MongoDB database** (Mongoose ODM) that owns all commercial state, integrated with **Socket.IO** for real-time messaging and events directly via the Node.js backend. **Cloudinary** is the only media provider. A **React SPA built with Vite + TypeScript** provides the Buyer, Seller and Admin interfaces.
 
 | Layer | Composition |
 |---|---|
 | Client Layer | Buyer Interface (mobile-first), Seller Dashboard (desktop-optimized), Super Admin Console (desktop-optimized) |
 | Network / Reverse Proxy | CORS, security headers, rate limiter |
 | Modular Monolith Core | Auth & RBAC, Catalogue & Inventory, Cart & Checkout, Scheduled Delivery & Slot Manager, RFQ & Quotations, Order Management & State Machine, Real-time Chat (Socket.IO), Payment Integration (Razorpay), Admin Oversight & Audit |
-| Data & State | MongoDB (Mongoose, source of truth), Redis (pub/sub, cache, locks) |
+| Data & State | MongoDB (Mongoose, sole persistent source of truth) |
 | External Providers | **Cloudinary** (media), Razorpay gateway, Google Maps / Mapbox geocoding |
 
 ### 14.2 Key Design Principles
@@ -519,6 +522,7 @@ A **single, highly disciplined Express.js + TypeScript backend** serves the API,
 3. **Atomic-by-Construction Guarantees** — concurrency-critical flows (slot reservation, inventory decrement, quotation acceptance, checkout) are expressed as **single-document atomic updates** (`findOneAndUpdate` + `$inc` with boundary filters) or **multi-document transactions** (`session` + `withTransaction`), never as read-then-write sequences.
 4. **Defensive Validation** — all inbound data validated with Zod at the boundary; client-supplied pricing/stock is never trusted.
 5. **Pragmatic Operational Simplicity** — no microservices, Kubernetes or mandatory Docker for MVP.
+6. **Buyer Surface Isolation** — the Buyer interface (`@haat/buyer-frontend`, port 3000) is strictly dedicated to purchasing (retail and wholesale lot procurement, catalogue discovery, scheduled slot selection, and checkout). All seller-facing elements (seller recruitment banners, seller onboarding CTAs, 'Open a store' empty-state prompts) are isolated from buyer views.
 
 ### 14.3 Technology Stack Justification Matrix
 
@@ -532,9 +536,8 @@ A **single, highly disciplined Express.js + TypeScript backend** serves the API,
 | Forms | React Hook Form + Zod | Performant uncontrolled form state with runtime schema validation |
 | Backend Runtime | Node.js (LTS) + Express.js | Mature ecosystem, TypeScript strict mode |
 | Language | TypeScript (strict) | End-to-end type safety across domain models and API contracts |
-| Real-time Engine | Socket.IO v4 | WebSocket abstraction with fallback, room isolation, heartbeat |
+| Real-time Engine | Socket.IO v4 | WebSocket abstraction with fallback, room isolation, heartbeat (direct Node.js backend) |
 | Database & ODM | **MongoDB 7+ (Atlas) & Mongoose 8** | Document model matches the aggregate shape (product + variants + tiers, order + fulfilment groups + snapshots); atomic single-document updates simplify concurrency; native horizontal scaling |
-| In-Memory Cache | Redis (`ioredis`) | Distributed locks, session cache, Socket.IO adapter |
 | Media Storage | **Cloudinary** | Signed direct uploads, on-the-fly transformations, global CDN, no server-side file handling |
 | Payments | Razorpay (modular adapter) | UPI, NetBanking, Cards, webhooks |
 | Package Manager | `pnpm` | Strict workspace isolation, deterministic locks, disk efficiency |
@@ -550,7 +553,7 @@ haat/
 │   │   │   ├── components/          # Shared atomic UI primitives (Shadcn UI)
 │   │   │   │   └── ui/              # Button, Dialog, Input, Dropdown, Table, Card
 │   │   │   ├── features/            # Domain-driven feature modules
-│   │   │   │   ├── auth/            # Login, Register, KYC, Role Guards
+│   │   │   │   ├── auth/            # Login, Register, Role Guards
 │   │   │   │   ├── catalog/         # Products, Variants, PDP, Storefronts
 │   │   │   │   ├── cart/            # Cart drawer, seller grouping, price tiers
 │   │   │   │   ├── checkout/        # Address selection, slot picker, payment trigger
@@ -573,7 +576,7 @@ haat/
 │   │
 │   └── api/                         # Express.js Backend API (Node + TypeScript)
 │       ├── src/
-│       │   ├── config/              # Environment parser, DB client, Redis client
+│       │   ├── config/              # Environment parser, DB client, logger
 │       │   ├── constants/           # Enums, error codes, HTTP statuses
 │       │   ├── middleware/          # Auth, RBAC, Zod validator, rate limiters, error handler
 │       │   ├── modules/             # Domain modules (Route → Controller → Service → Model)
@@ -685,7 +688,7 @@ erDiagram
 |---|---|---|---|---|
 | 1 | `users` | doc | Identity root for all roles | `phoneNumber` unique, `email` unique sparse, `passwordHash`, `role` enum, `isActive`, `tokenVersion` |
 | 2 | `buyerprofiles` | doc | B2B/B2C buyer attributes | `userId` unique ref, `businessName`, `gstin`, `isVerifiedBusiness` |
-| 3 | `sellerprofiles` | doc | Store + KYC + payout data | `userId` unique, `storeSlug` unique, `gstin` unique, PAN/bank fields, `isVerified`, `isActive`, `servicePincodes[]` |
+| 3 | `sellerprofiles` | doc | Store + payout data | `userId` unique, `storeSlug` unique, `gstin` unique, PAN/bank fields, `isVerified`, `isActive`, `servicePincodes[]` |
 | 4 | `addresses` | doc | Delivery addresses | `userId` ref, `pincode`, `isDefault`; index `(userId)` |
 | 5 | `categories` | doc | Self-referencing tree | `slug` unique, `parentId` ref (null = root), `path` materialized (`industrial/hardware`), `displayOrder`, `isActive` |
 | 6 | `products` | doc **+ embedded** | Seller listing aggregate | `slug` unique, `sku` unique, `retailPricePaise` int, `moq`, `orderMultiple`, `isWholesaleActive`, `isActive`, `isApproved`; embeds `variants[]`, `images[]`, `pricingTiers[]` |
@@ -751,7 +754,7 @@ erDiagram
 
 **Execution pipeline:** `Rate Limiter → Auth (JWT) → Role/Scope Check → Zod Validation → Thin Controller → Domain Service → Mongoose (atomic write / transaction) → Standard JSON Envelope.`
 
-1. **Rate limiting** — IP- and user-based sliding windows backed by Redis.
+1. **Rate limiting** — IP- and user-based sliding windows in memory.
 2. **Authentication middleware** — decode Bearer JWT, verify signature, verify user is active.
 3. **Role & resource authorization** — validate `req.user.role` and tenant ownership (e.g. `sellerId` must match the authenticated seller).
 4. **Validation middleware** — validate `req.body`, `req.params`, `req.query` against Zod schemas; reject with `400 BAD_REQUEST`.
@@ -766,7 +769,6 @@ sequenceDiagram
     actor Buyer
     actor Seller
     participant Gateway as Socket.IO Server
-    participant Redis as Redis Pub/Sub
     participant Service as Chat Service
     participant DB as MongoDB
 
@@ -782,8 +784,7 @@ sequenceDiagram
     Gateway->>Service: Handle New Message
     Service->>DB: INSERT INTO Message (conversationId, senderId, content)
     DB-->>Service: Saved Message (ID, Timestamp)
-    Service->>Redis: Publish "conv:C1" message event
-    Redis-->>Gateway: Broadcast to room "conv:C1"
+    Service-->>Gateway: Broadcast to room "conv:C1"
     Gateway-->>Seller: emit("new_message", messageObject)
     Gateway-->>Buyer: emit("message_delivered", { messageId })
 ```
@@ -792,7 +793,7 @@ sequenceDiagram
 
 - **Strict authorization** — a socket may not listen to or broadcast into a room without DB verification of participant membership.
 - **Persistence first** — messages are written to MongoDB *before* broadcast; a failed write means no broadcast and an error event to the sender.
-- **Scaling across nodes** — Redis Adapter (`@socket.io/redis-adapter`) synchronizes events across backend instances.
+- **Direct WebSocket architecture** — Socket.IO v4 runs directly on the Node.js/Express backend; no Redis or external broker is required.
 - **Receipts & unread state** — read events update `lastReadAt` on `ConversationParticipant`, driving unread badge recalculation.
 
 ### 14.8 Concurrency-Safe Checkout & Slot Reservation (MongoDB)
@@ -948,15 +949,15 @@ sequenceDiagram
 | Cross-Site Scripting (XSS) | React JSX auto-escaping + input sanitization | `sanitize-html` on chat and product descriptions |
 | Cross-Site Request Forgery (CSRF) | SameSite cookie policy + custom header validation | Mutating requests require `X-Requested-With: XMLHttpRequest` or equivalent custom header |
 | Price Tampering | Server-side recalculation | Client-supplied prices discarded; totals recalculated from MongoDB |
-| DDoS / Brute Force | Multi-tier rate limiting | Redis-backed sliding window limiters on auth, chat, checkout |
+| DDoS / Brute Force | Multi-tier rate limiting | In-memory sliding window rate limiters on auth, chat, checkout |
 | Oversized document / unbounded array | Schema-level array limits | `$push` validators + `$slice` on messages; embedded arrays capped in the model layer |
 
 ### 14.12 Caching & Performance Strategy
 
-1. **Redis caching tier**
-   - Active catalogue categories and navigation trees — TTL **1 hour**, invalidated on category mutation.
-   - Seller storefront profiles and active slot templates — TTL **15 minutes**.
-   - Live slot remaining capacity — **never cached**; served by `slotcounters` reads covered by the compound index.
+1. **Database query optimization & indexing plan**
+   - MongoDB Atlas is the single source of truth; all reads and writes are direct and transactional.
+   - Active catalogue categories and navigation trees are served via indexed MongoDB queries.
+   - Live slot remaining capacity is served directly by `slotcounters` reads covered by compound indexes.
 2. **MongoDB indexing plan (created in the model files, not at runtime)**
 
 | Collection | Index | Serves |
@@ -968,7 +969,7 @@ sequenceDiagram
 | `products` | text index on `{ title, description, brand, sku }` (`weights` favouring title) | `$text` search |
 | `products` | `{ 'variants.sku': 1 }` unique (multikey) | Variant SKU uniqueness |
 | `categories` | `{ slug: 1 }` unique, `{ parentId: 1, displayOrder: 1 }` | Tree assembly |
-| `sellerprofiles` | `{ storeSlug: 1 }` unique, `{ gstin: 1 }` unique | Storefront / KYC dedupe |
+| `sellerprofiles` | `{ storeSlug: 1 }` unique, `{ gstin: 1 }` unique | Storefront / seller dedupe |
 | `deliveryslots` | `{ sellerId: 1, dayOfWeek: 1 }` | Slot template lookup |
 | `slotcounters` | `{ sellerId: 1, slotId: 1, date: 1 }` unique | Atomic capacity guard |
 | `orders` | `{ orderNumber: 1 }` unique, `{ idempotencyKey: 1 }` unique | Lookup / duplicate suppression |
@@ -986,9 +987,9 @@ sequenceDiagram
 
 | Environment | Composition |
 |---|---|
-| Local Development | Node.js, **MongoDB 7 replica-set** (`mongod --replSet rs0` + `rs.initiate()`, required for transactions), local Redis, `.env` via dotenv |
-| Staging / QA | **MongoDB Atlas** (M10+, replica set included), cloud Redis (Upstash / Redis Labs), hosted Node instance, Cloudinary staging folder, Razorpay **test** mode |
-| Production | **MongoDB Atlas** with dedicated cluster + backups + read preference tuning, managed Redis cluster, Cloudinary production folder with signed uploads, Razorpay **live** mode |
+| Local Development | Node.js, **MongoDB 7 replica-set** (`mongod --replSet rs0` + `rs.initiate()`, required for transactions), `.env` via dotenv |
+| Staging / QA | **MongoDB Atlas** (M10+, replica set included), hosted Node instance, Cloudinary staging folder, Razorpay **test** mode |
+| Production | **MongoDB Atlas** with dedicated cluster + backups + read preference tuning, Cloudinary production folder with signed uploads, Razorpay **live** mode |
 
 **Environment variable matrix (referential only — no secrets committed):**
 
@@ -999,10 +1000,9 @@ NODE_ENV=development            # development | staging | production
 API_URL=http://localhost:5000
 FRONTEND_URL=http://localhost:5173
 
-# Database & Cache (MongoDB + Redis)
+# Database (MongoDB Atlas)
 MONGODB_URI=mongodb://127.0.0.1:27017/haat?replicaSet=rs0
 MONGODB_DB_NAME=haat
-REDIS_URL=redis://localhost:6379
 
 # Authentication Secrets
 JWT_ACCESS_SECRET=your_jwt_access_secret_key_min_32_chars
@@ -1183,14 +1183,14 @@ if (!order || (order.buyerId.toString() !== authenticatedUserId && userRole !== 
 | Phase | Scope | Tasks | Exit Theme |
 |---|---|---|---|
 | 1 | Project Foundation & Auth | 5 | Workspace, backend core, DB, RBAC, frontend shell |
-| 2 | Seller Onboarding & KYC | 3 | Seller profiles, KYC wizard, public storefront |
+| 2 | Seller Onboarding & Store Profile | 3 | Seller profiles, onboarding wizard, public storefront |
 | 3 | Catalogue, Variants & Inventory | 4 | Category tree, product CRUD, media/variants, seller UI |
 | 4 | Retail Shopping, Cart & Multi-Seller Checkout | 4 | Search, PDP, grouped cart, snapshot checkout |
 | 5 | Scheduled Delivery & Capacity | 4 | Slot config, availability API, transactional booking, slot picker |
 | 6 | Bulk Pricing Tiers & RFQ | 4 | Tier engine, RFQ submission, quotation builder, order conversion |
 | 7 | Real-Time Chat (Socket.IO) | 4 | Handshake auth, context binding, persistence, chat UI |
 | 8 | Orders, Razorpay & Invoices | 5 | State machine, gateway adapter, webhook settlement, fulfilment queue, invoices |
-| 9 | Super Admin Governance | 4 | KYC review, catalogue moderation, disputes, audit log explorer |
+| 9 | Super Admin Governance | 4 | Seller approval, catalogue moderation, disputes, audit log explorer |
 | 10 | Security, QA & Production | 4 | Concurrency stress, security audit, responsive QA, deployment validation |
 
 > **Current state:** Part 1 is **IN PROGRESS** (see `planning/Memory.md`). Every later task remains `NOT STARTED`.
@@ -1201,9 +1201,9 @@ The Phase 1 → Phase 10 backlog is executed as **three shippable parts**. Each 
 
 | Part | Name | Phases | Scope | Exit criterion |
 |---|---|---|---|---|
-| **Part 1** | **Foundation & Commerce Core** | 1, 2, 3 | Monorepo + shared package, Express core, MongoDB/Mongoose models, auth + RBAC + refresh rotation, seller onboarding/KYC, category tree, product aggregate (variants, tiers, Cloudinary images), React app shell with brand tokens, auth screens, seller product console | `pnpm build` green; register → login → create seller → create product with variants/tiers works end-to-end against a live MongoDB |
+| **Part 1** | **Foundation & Commerce Core** | 1, 2, 3 | Monorepo + shared package, Express core, MongoDB/Mongoose models, auth + RBAC + refresh rotation, seller onboarding, category tree, product aggregate (variants, tiers, Cloudinary images), React app shell with brand tokens, auth screens, seller product console | `pnpm build` green; register → login → create seller → create product with variants/tiers works end-to-end against a live MongoDB |
 | **Part 2** | **Buyer Commerce & Scheduled Fulfilment** | 4, 5, 6 | Search/facets, PDP, storefront, cart with seller grouping, checkout + atomic slot reservation, seller slot configuration, bulk tier engine, RFQ/quotation lifecycle and conversion | Search → PDP → cart → slot selection → order draft works, and an RFQ can be quoted and accepted, with concurrency tests green |
-| **Part 3** | **Real-Time, Payments, Admin & Hardening** | 7, 8, 9, 10 | Socket.IO chat (+ Redis adapter), order state machine, Razorpay + webhook settlement, invoices, super-admin consoles, audit trail, security/performance/mobile QA, production deployment | Full lifecycle including payment, chat and admin governance; 50-concurrent stress test passes; production build + health check verified |
+| **Part 3** | **Real-Time, Payments, Admin & Hardening** | 7, 8, 9, 10 | Socket.IO real-time communication, order state machine, Razorpay + webhook settlement, invoices, super-admin consoles, audit trail, security/performance/mobile QA, production deployment | Full lifecycle including payment, chat and admin governance; 50-concurrent stress test passes; production build + health check verified |
 
 > Cross-cutting rule: Part 1 must not implement forward references to Part 2/3 features. If a screen is not in Part 1, it does not exist in the navigation yet — no disabled placeholders (PRD §15.3).
 
@@ -1242,8 +1242,8 @@ The Phase 1 → Phase 10 backlog is executed as **three shippable parts**. Each 
 
 | Task ID | Task Title | Priority | Dependencies | Status |
 |---|---|---|---|---|
-| `TSK-P2-01` | Seller Business Profile & KYC Backend | HIGH | `TSK-P1-04` | NOT STARTED |
-| `TSK-P2-02` | Seller Registration & Document Upload UI | HIGH | `TSK-P1-05`, `TSK-P2-01` | NOT STARTED |
+| `TSK-P2-01` | Seller Business Profile & Onboarding Backend | HIGH | `TSK-P1-04` | NOT STARTED |
+| `TSK-P2-02` | Seller Registration & Store Profile UI | HIGH | `TSK-P1-05`, `TSK-P2-01` | NOT STARTED |
 | `TSK-P2-03` | Public Seller Storefront Interface | MEDIUM | `TSK-P2-01`, `TSK-P1-05` | NOT STARTED |
 
 - **`TSK-P2-01`** *(`apps/api/modules/sellers`)* — onboarding endpoints for Store Name, Slug, GSTIN, PAN, Bank Details, Service Pincodes; submission lands in `PENDING` verification state. **AC:** duplicate slug or GSTIN → 409 Conflict; non-seller roles cannot create seller profiles. **Testing:** unit + API validation tests.
@@ -1315,7 +1315,7 @@ The Phase 1 → Phase 10 backlog is executed as **three shippable parts**. Each 
 | `TSK-P7-03` | Message Persistence & Room Delivery Engine | HIGH | `TSK-P7-01` | NOT STARTED |
 | `TSK-P7-04` | Buyer & Seller Chat Widget Interface | HIGH | `TSK-P7-03`, `TSK-P1-05` | NOT STARTED |
 
-- **`TSK-P7-01`** *(`apps/api/sockets`)* — initialize Socket.IO on the Express server, configure the Redis pub/sub adapter, authenticate connections via JWT handshake. **AC:** unauthenticated sockets rejected with 401. **Testing:** socket auth connection tests.
+- **`TSK-P7-01`** *(`apps/api/sockets`)* — initialize Socket.IO on the Express server, configure authenticated connections via JWT handshake. **AC:** unauthenticated sockets rejected with 401. **Testing:** socket auth connection tests.
 - **`TSK-P7-02`** *(`apps/api/modules/chat`)* — conversation rooms bound to context (Product ID, Order ID, RFQ ID) with participant authorization. **AC:** only the participating buyer and verified seller may join. **Testing:** security tests proving third parties cannot join or listen.
 - **`TSK-P7-03`** *(`apps/api/modules/chat`)* — handle `send_message`, persist to MongoDB before broadcasting, update read receipts. **AC:** messages survive reconnects; sender receives delivery acknowledgement. **Testing:** persistence integration and unread-counter tests.
 - **`TSK-P7-04`** *(`apps/web/features/chat`)* — floating buyer chat drawer and full-screen seller console with conversation list, history and typing indicators. **AC:** real-time rendering without refresh; auto scroll-to-bottom. **Testing:** chat interaction UI tests.
@@ -1340,12 +1340,12 @@ The Phase 1 → Phase 10 backlog is executed as **three shippable parts**. Each 
 
 | Task ID | Task Title | Priority | Dependencies | Status |
 |---|---|---|---|---|
-| `TSK-P9-01` | Admin Verification & KYC Review Console | HIGH | `TSK-P2-01` | NOT STARTED |
+| `TSK-P9-01` | Admin Seller Approval & Management Console | HIGH | `TSK-P2-01` | NOT STARTED |
 | `TSK-P9-02` | Catalogue Moderation & SKU Suspension | HIGH | `TSK-P3-02` | NOT STARTED |
 | `TSK-P9-03` | Order Oversight & Dispute Management Portal | HIGH | `TSK-P8-01` | NOT STARTED |
 | `TSK-P9-04` | Immutable Audit Log Explorer | MEDIUM | `TSK-P1-02` | NOT STARTED |
 
-- **`TSK-P9-01`** *(`apps/web/features/admin` & `apps/api/modules/admin`)* — inspect seller documents, verify GSTIN/bank records, approve/reject. **AC:** approval sets `isVerified: true` and records an `AuditLog` entry. **Testing:** admin KYC approval integration test.
+- **`TSK-P9-01`** *(`apps/web/features/admin` & `apps/api/modules/admin`)* — inspect seller application, verify registration details, approve/reject. **AC:** approval sets `ACTIVE` status and records an `AuditLog` entry. **Testing:** admin seller approval integration test.
 - **`TSK-P9-02`** *(`apps/web/features/admin`)* — product inspection table to flag or suspend non-compliant listings platform-wide. **AC:** suspended products vanish immediately from public search and storefronts. **Testing:** suspension visibility tests.
 - **`TSK-P9-03`** *(`apps/web/features/admin`)* — global transaction view, active delivery slots, dispute claims and administrative refund triggers. **AC:** cross-seller order visibility and refund overrides. **Testing:** dispute resolution workflow tests.
 - **`TSK-P9-04`** *(`apps/api/modules/admin`)* — searchable, filterable audit viewer capturing actor, action, entity, timestamp and IP. **AC:** logs cannot be edited or deleted through the interface. **Testing:** audit query and filter tests.
@@ -1362,7 +1362,7 @@ The Phase 1 → Phase 10 backlog is executed as **three shippable parts**. Each 
 - **`TSK-P10-01`** *(Test Suite)* — stress tests with 50+ concurrent checkouts targeting a single slot and low-inventory items. **AC:** zero overbooking; transaction integrity verified. **Testing:** stress suite passing 100%.
 - **`TSK-P10-02`** *(Security / QA)* — full endpoint review for resource authorization, auth/chat rate limiting and XSS sanitization. **AC:** CodeRabbit reports zero high/critical vulnerabilities. **Testing:** automated penetration scripts.
 - **`TSK-P10-03`** *(QA / UI)* — verify buyer screens at 375 px and 414 px; seller/admin dashboards at 1280 px and 1440 px. **AC:** no layout breakage, horizontal overflow or unreachable buttons. **Testing:** Playwright/Cypress responsive suite.
-- **`TSK-P10-04`** *(DevOps / Setup)* — verify production builds, `migrate-mongo` migrations against the production Atlas cluster, Redis health and `.env.example` completeness. **AC:** builds complete without warnings; `/health` returns 200 OK. **Testing:** production build verification and health-check curl tests.
+- **`TSK-P10-04`** *(DevOps / Setup)* — verify production builds, `migrate-mongo` migrations against the production Atlas cluster, backend health and `.env.example` completeness. **AC:** builds complete without warnings; `/health` returns 200 OK. **Testing:** production build verification and health-check curl tests.
 
 ---
 

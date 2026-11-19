@@ -2,21 +2,43 @@
   "name": "haat",
   "version": "0.1.0",
   "private": true,
-  "description": "HAAT — India's Retail & Wholesale Marketplace (modular monolith monorepo)",
+  "type": "module",
+  "description": "HAAT — India's Retail & Wholesale Marketplace (Buyer, Seller & Admin Monorepo)",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @haat/api --filter @haat/web dev",
-    "dev:api": "pnpm --filter @haat/api dev",
-    "dev:web": "pnpm --filter @haat/web dev",
-    "build": "pnpm --filter @haat/api build && pnpm --filter @haat/web build",
+    "dev": "node scripts/dev.js all",
+    "dev:nodemon": "node scripts/dev.js all --nodemon",
+    "dev:buyer": "node scripts/dev.js buyer",
+    "dev:buyer:frontend": "pnpm --filter @haat/buyer-frontend dev",
+    "dev:buyer:backend": "pnpm --filter @haat/buyer-backend dev",
+    "dev:seller": "node scripts/dev.js seller",
+    "dev:seller:frontend": "pnpm --filter @haat/seller-frontend dev",
+    "dev:seller:backend": "pnpm --filter @haat/seller-backend dev",
+    "dev:admin": "node scripts/dev.js admin",
+    "dev:admin:frontend": "pnpm --filter @haat/admin-frontend dev",
+    "dev:admin:backend": "pnpm --filter @haat/admin-backend dev",
+    "kill-ports": "kill-port --port 3000,4000,5000,5001,6000,7000,7100,8000,8080,5173,5174",
+    "build": "pnpm -r --filter=!haat build",
+    "build:buyer": "pnpm --filter @haat/buyer-frontend build && pnpm --filter @haat/buyer-backend build",
+    "build:seller": "pnpm --filter @haat/seller-frontend build && pnpm --filter @haat/seller-backend build",
+    "build:admin": "pnpm --filter @haat/admin-frontend build && pnpm --filter @haat/admin-backend build",
     "typecheck": "pnpm -r typecheck",
+    "lint": "prettier --check .",
+    "lint:fix": "prettier --write .",
     "test": "pnpm -r test",
-    "seed": "pnpm --filter @haat/api seed"
+    "seed:buyer": "pnpm --filter @haat/buyer-backend seed",
+    "seed:seller": "pnpm --filter @haat/seller-backend seed",
+    "seed:admin": "pnpm --filter @haat/admin-backend seed",
+    "db:drop": "node scripts/drop-db.js"
   },
   "devDependencies": {
+    "@types/node": "22.10.2",
+    "kill-port": "^2.0.1",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.10.1",
     "typescript": "5.6.3"
   }
 }

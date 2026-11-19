@@ -13,8 +13,12 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@haat/shared": ["packages/shared/src/index.ts"],
-      "@haat/shared/*": ["packages/shared/src/*"]
+      "@haat/shared-contracts": ["shared/contracts/src/index.ts"],
+      "@haat/shared-contracts/*": ["shared/contracts/src/*"],
+      "@haat/shared-backend": ["shared/backend/src/index.ts"],
+      "@haat/shared-backend/*": ["shared/backend/src/*"],
+      "@haat/shared-frontend": ["shared/frontend/src/index.ts"],
+      "@haat/shared-frontend/*": ["shared/frontend/src/*"]
     }
   }
 }

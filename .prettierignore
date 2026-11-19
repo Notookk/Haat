@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.cache/
+planning/
+.agents/
+skills-lock.json
+pnpm-lock.yaml
+*.log

@@ -1,0 +1,325 @@
+/* SweetAlert2 Toast — Compact Top/Bottom & Default Animated Icons */
+
+/* Top-end Container Positioning & Elimination of Right-Side Overlay */
+.swal2-container.swal2-top-end,
+.swal2-container.swal2-top-right,
+.swal2-container:has(.swal2-toast),
+body.swal2-toast-shown .swal2-container,
+div:where(.swal2-container).swal2-top-end,
+div:where(.swal2-container).swal2-top-right,
+div:where(.swal2-container):has(.swal2-toast) {
+  top: 1rem !important;
+  right: 1rem !important;
+  left: auto !important;
+  bottom: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  width: auto !important;
+  max-width: 100vw !important;
+  z-index: 99999 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+  transition: none !important;
+  --swal2-backdrop: transparent !important;
+  --swal2-backdrop-transition: none !important;
+}
+
+/* Strictly suppress any backdrop show animation or background on toasts */
+.swal2-container.swal2-backdrop-show:has(.swal2-toast),
+body.swal2-toast-shown .swal2-container.swal2-backdrop-show,
+div:where(.swal2-container).swal2-backdrop-show:has(.swal2-toast),
+div:where(.swal2-container).swal2-top-end.swal2-backdrop-show,
+div:where(.swal2-container).swal2-top-right.swal2-backdrop-show {
+  background: transparent !important;
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+}
+
+/* Compact Popup: Small top and bottom size with tight stacked text */
+.swal2-popup.swal2-toast {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: auto 1fr !important;
+  align-items: center !important;
+  column-gap: 0.65rem !important;
+  row-gap: 0.125rem !important;
+  padding: 0.45rem 0.85rem !important; /* Small top and bottom padding */
+  min-height: unset !important;
+  width: auto !important;
+  max-width: 24rem !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow:
+    0 10px 25px -5px rgba(0, 0, 0, 0.1),
+    0 6px 10px -5px rgba(0, 0, 0, 0.06) !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+/* Default Animated Icons in Compact Toast */
+.swal2-popup.swal2-toast .swal2-icon {
+  grid-column: 1 !important;
+  grid-row: 1 / span 2 !important;
+  align-self: center !important;
+  position: relative !important;
+  box-sizing: content-box !important;
+  justify-content: center !important;
+  width: 1.6rem !important;
+  min-width: 1.6rem !important;
+  height: 1.6rem !important;
+  margin: 0 !important;
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  cursor: default !important;
+  user-select: none !important;
+}
+
+/* Success Icon Animations */
+.swal2-popup.swal2-toast .swal2-icon.swal2-success {
+  border-color: #22c55e !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-success .swal2-success-ring {
+  position: absolute !important;
+  top: -2px !important;
+  left: -2px !important;
+  width: 1.6rem !important;
+  height: 1.6rem !important;
+  border: 2px solid rgba(34, 197, 94, 0.25) !important;
+  border-radius: 50% !important;
+  box-sizing: content-box !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-success [class^='swal2-success-line'] {
+  position: absolute !important;
+  height: 2px !important;
+  border-radius: 2px !important;
+  background-color: #22c55e !important;
+  z-index: 2 !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-success [class^='swal2-success-line'][class$='tip'] {
+  top: 0.85rem !important;
+  left: 0.25rem !important;
+  width: 0.55rem !important;
+  transform: rotate(45deg) !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-success [class^='swal2-success-line'][class$='long'] {
+  top: 0.75rem !important;
+  right: 0.25rem !important;
+  width: 0.85rem !important;
+  transform: rotate(-45deg) !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-success.swal2-icon-show .swal2-success-line-tip {
+  animation: swal2-toast-animate-success-line-tip 0.6s ease-out !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-success.swal2-icon-show .swal2-success-line-long {
+  animation: swal2-toast-animate-success-line-long 0.6s ease-out !important;
+}
+
+/* Error Icon Animations */
+.swal2-popup.swal2-toast .swal2-icon.swal2-error {
+  border-color: #ef4444 !important;
+  animation: swal2-animate-error-icon 0.45s ease-out !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-error .swal2-x-mark {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  animation: swal2-animate-error-x-mark 0.45s ease-out !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
+  position: absolute !important;
+  top: 0.75rem !important;
+  height: 2px !important;
+  border-radius: 2px !important;
+  background-color: #ef4444 !important;
+  width: 0.95rem !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-error [class^='swal2-x-mark-line'][class$='left'] {
+  left: 0.325rem !important;
+  transform: rotate(45deg) !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-error [class^='swal2-x-mark-line'][class$='right'] {
+  right: 0.325rem !important;
+  transform: rotate(-45deg) !important;
+}
+
+/* Warning Icon Animations */
+.swal2-popup.swal2-toast .swal2-icon.swal2-warning {
+  border-color: #f59e0b !important;
+  animation: swal2-animate-error-icon 0.45s ease-out !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-warning .swal2-icon-content {
+  font-size: 1.1rem !important;
+  font-weight: 800 !important;
+  color: #f59e0b !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  animation: swal2-animate-i-mark 0.45s ease-out !important;
+}
+
+/* Info Icon Animations */
+.swal2-popup.swal2-toast .swal2-icon.swal2-info {
+  border-color: #16135c !important;
+  animation: swal2-animate-error-icon 0.45s ease-out !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon.swal2-info .swal2-icon-content {
+  font-size: 1.1rem !important;
+  font-weight: 800 !important;
+  color: #16135c !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  animation: swal2-animate-i-mark 0.6s ease-out !important;
+}
+
+/* Typography: Compact & Small Top/Bottom with minimal gap between title and text */
+.swal2-popup.swal2-toast h2:where(.swal2-title),
+.swal2-popup.swal2-toast .swal2-title {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0.8125rem !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  color: #111827 !important;
+  text-align: left !important;
+}
+
+.swal2-popup.swal2-toast div:where(.swal2-html-container),
+.swal2-popup.swal2-toast .swal2-html-container {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0.725rem !important;
+  line-height: 1.25 !important;
+  color: #4b5563 !important;
+  text-align: left !important;
+}
+
+.swal2-popup.swal2-toast .swal2-html-container:empty {
+  display: none !important;
+}
+
+/* Sleek Timer Progress Bar */
+.swal2-popup.swal2-toast .swal2-timer-progress-bar {
+  grid-column: 1 / -1 !important;
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 2.5px !important;
+  background: rgba(22, 19, 92, 0.4) !important;
+}
+
+/* ============================================================ */
+/* Haat SweetAlert2 Confirmation Dialog Modal Styling           */
+/* ============================================================ */
+/* SweetAlert2 Confirmation Dialog Modal Backdrop (only for full modals, never for toasts) */
+.swal2-container:not(.swal2-top-end):not(.swal2-top-right):not(:has(.swal2-toast)) {
+  z-index: 100000 !important;
+  background: rgba(15, 23, 42, 0.65) !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+.swal2-popup:not(.swal2-toast) {
+  border-radius: 1.25rem !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  padding: 1.75rem !important;
+  max-width: 28rem !important;
+  font-family: inherit !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-icon {
+  margin: 0.5rem auto 1rem !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-title {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  padding: 0.5rem 0 0.25rem !important;
+  line-height: 1.35 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-html-container {
+  font-size: 0.875rem !important;
+  color: #475569 !important;
+  margin: 0.5rem 0 1.25rem !important;
+  line-height: 1.5 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-actions {
+  display: flex !important;
+  gap: 0.75rem !important;
+  margin-top: 1rem !important;
+  width: 100% !important;
+  justify-content: flex-end !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-confirm {
+  border-radius: 0.5rem !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  padding: 0.6rem 1.25rem !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  order: 2 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-cancel {
+  border-radius: 0.5rem !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  padding: 0.6rem 1.25rem !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  order: 1 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-cancel:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Prevent SweetAlert2 from adding padding-right to body or html causing a right-side gutter/gap */
+body.swal2-shown,
+body.swal2-toast-shown,
+html.swal2-shown {
+  padding-right: 0px !important;
+  margin-right: 0px !important;
+}
+
+body.swal2-toast-shown {
+  overflow: auto !important;
+}

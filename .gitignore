@@ -2,27 +2,49 @@
 node_modules/
 .pnpm-store/
 
-# Build output
+# Build and bundle outputs
 dist/
 build/
+out/
+.cache/
+.vite/
 *.tsbuildinfo
 
-# Environment
+# Environment and secrets (ignore all .env variants except example templates)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
 
-# Editor / OS
+# Test and coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Editor and IDE
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea/
-.DS_Store
-Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-workspace
+*.sublime-project
 
-# Test / coverage
-coverage/
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
