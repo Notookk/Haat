@@ -91,3 +91,13 @@ export const unblockSellerHandler = asyncHandler(async (req, res) => {
   });
   return sendSuccess(res, { seller, message: 'Seller unblocked successfully.' });
 });
+
+export const deleteSellerHandler = asyncHandler(async (req, res) => {
+  const result = await adminSellerService.deleteSeller({
+    sellerId: req.params.id,
+    adminUserId: req.user!.userId,
+    adminRole: req.user!.role,
+    ipAddress: req.ip,
+  });
+  return sendSuccess(res, result);
+});

@@ -5,11 +5,6 @@ import {
   LayoutDashboard,
   Users,
   Store,
-  FolderTree,
-  ShoppingBag,
-  CreditCard,
-  PackageSearch,
-  FileText,
   LogOut,
   ChevronDown,
 } from 'lucide-react';
@@ -24,13 +19,8 @@ const navItems: Array<{
   badge?: string;
 }> = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/orders', label: 'Orders', icon: ShoppingBag, end: false },
-  { to: '/transactions', label: 'Transactions', icon: CreditCard, end: false, badge: 'WIP' },
-  { to: '/catalog', label: 'Catalog', icon: PackageSearch, end: false },
-  { to: '/categories', label: 'Categories', icon: FolderTree, end: false },
   { to: '/sellers', label: 'Sellers', icon: Store, end: false },
   { to: '/buyers', label: 'Buyers', icon: Users, end: false },
-  { to: '/audit-logs', label: 'Audit Logs', icon: FileText, end: false },
 ];
 
 export function AdminLayout() {

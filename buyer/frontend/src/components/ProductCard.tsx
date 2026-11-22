@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Star, Plus, Eye, Heart, ArrowLeftRight, X, Minus, Check, MessageCircle, Trash2 } from 'lucide-react';
-import { money, ProductMedia, showToast, type Product } from '@haat/shared-frontend';
+import { api, money, ProductMedia, showToast, type Product } from '@haat/shared-frontend';
 import { useAuth } from '../features/auth/AuthProvider';
 import {
   addProductToCart,
@@ -16,6 +17,7 @@ export function ProductCard({ product }: { product: Product }) {
   const navigate = useNavigate();
   const { status, user } = useAuth();
   const isAuthenticated = status === 'authenticated' && Boolean(user);
+  const canChat = isAuthenticated;
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [quantity, setQuantity] = useState(product.moq || 1);
   const [isWishlisted, setIsWishlisted] = useState(() => isProductWishlisted(product.id));
@@ -153,7 +155,11 @@ export function ProductCard({ product }: { product: Product }) {
   const handleOpenChat = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      showToast.info('Sign In Required', 'Please sign in to chat with sellers.');
+      navigate('/login?redirect=' + encodeURIComponent(window.location.pathname));
+      return;
+    }
     const params = new URLSearchParams();
     if (product.sellerSlug) params.set('seller', product.sellerSlug);
     if (product.sellerName) params.set('sellerName', product.sellerName);
@@ -279,15 +285,14 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Chat with Seller Button (disabled if user not logged in) */}
+            {/* Chat with Seller Button */}
             <button
               type="button"
               onClick={handleOpenChat}
-              disabled={!isAuthenticated}
-              className={`inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold shadow-2xs transition-colors ${
-                isAuthenticated
-                  ? 'border border-[#16135c]/25 bg-white text-[#16135c] hover:bg-[#16135c] hover:text-white cursor-pointer'
-                  : 'border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+              className={`inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold shadow-2xs transition-colors cursor-pointer ${
+                canChat
+                  ? 'border border-[#16135c]/25 bg-white text-[#16135c] hover:bg-[#16135c] hover:text-white'
+                  : 'border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
               }`}
               title={isAuthenticated ? 'Chat with Seller' : 'Sign in to chat with sellers'}
             >
@@ -330,7 +335,14 @@ export function ProductCard({ product }: { product: Product }) {
       {/* Quick View Modal Overlay */}
       {quickViewOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setQuickViewOpen(false);
+                }
+              }}
+            >
           <div
             ref={dialogRef}
             role="dialog"

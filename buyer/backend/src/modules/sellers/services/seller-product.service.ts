@@ -246,7 +246,7 @@ function sortFor(sort: ProductQueryInput['sort']): Record<string, SortOrder> {
     case 'price-desc':
       return { retailPricePaise: -1, _id: 1 };
     default:
-      return { createdAt: -1, _id: 1 };
+      return { createdAt: 1, _id: 1 };
   }
 }
 

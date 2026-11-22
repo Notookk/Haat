@@ -392,7 +392,14 @@ export function SellerDeliverySlotsPage() {
       {/* ------------------------------------------------------------- */}
       {isAddModalOpen &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75">
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsAddModalOpen(false);
+              }
+            }}
+          >
             <div className="relative w-full max-w-lg rounded-2xl bg-surface p-6 sm:p-7 shadow-2xl border border-line z-[10000] animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between border-b border-line pb-4">
                 <div className="flex items-center gap-2.5">
@@ -470,7 +477,14 @@ export function SellerDeliverySlotsPage() {
       {/* ------------------------------------------------------------- */}
       {editingSlot &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75">
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setEditingSlot(null);
+              }
+            }}
+          >
             <div className="relative w-full max-w-lg rounded-2xl bg-surface p-6 sm:p-7 shadow-2xl border border-line z-[10000] animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between border-b border-line pb-4">
                 <div className="flex items-center gap-2.5">
@@ -557,7 +571,14 @@ export function SellerDeliverySlotsPage() {
       {/* ------------------------------------------------------------- */}
       {viewingSlotId &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75">
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setViewingSlotId(null);
+              }
+            }}
+          >
             <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-surface shadow-2xl border border-line z-[10000]">
               <div className="flex items-center justify-between border-b border-line px-6 py-4">
                 <div className="flex items-center gap-2">

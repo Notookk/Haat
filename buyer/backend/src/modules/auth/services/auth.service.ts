@@ -7,6 +7,7 @@ import {
   createRefreshToken,
   hashToken,
   REFRESH_TTL_MS,
+  realtimeEventBus,
 } from '@haat/shared-backend';
 import { toPublicUser, type PublicUser, type SellerSummary } from '../auth.dto';
 import { authModel } from '../models/auth.model';
@@ -70,6 +71,17 @@ export async function register(input: RegisterInput, meta: RequestMeta): Promise
 
   // Buyers get their profile shell immediately so later modules never need an upsert race.
   await authModel.createBuyerProfile(user._id);
+
+  // Real-time broadcast across platform to Admin Buyers directory
+  void realtimeEventBus.publishBuyerRegistered({
+    buyerId: String(user._id),
+    fullName: user.fullName,
+    phoneNumber: user.phoneNumber,
+    email: user.email,
+    role: user.role,
+    createdAt: (user as any).createdAt ? new Date((user as any).createdAt).toISOString() : new Date().toISOString(),
+    action: 'REGISTERED',
+  });
 
   return issueSession(user, meta);
 }

@@ -96,7 +96,24 @@ export function AdminDashboardPage() {
       void refetch();
     });
 
+    socket.on(SOCKET_EVENTS.BUYER_REGISTERED, () => {
+      void refetch();
+    });
+
+    socket.on(SOCKET_EVENTS.BUYER_UPDATED, () => {
+      void refetch();
+    });
+
+    socket.on(SOCKET_EVENTS.ORDER_CREATED, () => {
+      void refetch();
+    });
+
     return () => {
+      socket.off(SOCKET_EVENTS.ADMIN_SELLER_UPDATED);
+      socket.off(SOCKET_EVENTS.SELLER_STATUS_CHANGED);
+      socket.off(SOCKET_EVENTS.BUYER_REGISTERED);
+      socket.off(SOCKET_EVENTS.BUYER_UPDATED);
+      socket.off(SOCKET_EVENTS.ORDER_CREATED);
       socket.disconnect();
     };
   }, [refetch]);

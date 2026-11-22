@@ -13,7 +13,6 @@ import { SellerOrdersPage } from '../pages/SellerOrdersPage';
 import { SellerRevenuePage } from '../pages/SellerRevenuePage';
 import { SellerSettingsPage } from '../pages/SellerSettingsPage';
 import { SellerChatPage } from '../pages/SellerChatPage';
-import { SellerRfqPage } from '../pages/SellerRfqPage';
 import { SellerNotFoundPage } from '../pages/SellerNotFoundPage';
 import { SellerPendingApprovalPage } from '../pages/SellerPendingApprovalPage';
 import { SellerBlockedPage } from '../pages/SellerBlockedPage';
@@ -78,10 +77,6 @@ export const sellerRouter = createBrowserRouter([
           {
             path: 'orders',
             element: <SellerOrdersPage />,
-          },
-          {
-            path: 'rfq',
-            element: <SellerRfqPage />,
           },
           {
             path: 'delivery-slots',

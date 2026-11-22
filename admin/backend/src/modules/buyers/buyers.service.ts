@@ -26,7 +26,7 @@ export const adminBuyerService = {
     const [buyers, total] = await Promise.all([
       User.find(trustedQuery)
         .select('-passwordHash')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: 1, _id: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),

@@ -18,6 +18,8 @@ import {
 import { useAuth } from '../features/auth/AuthProvider';
 import { useCategoryTree } from '../features/catalog/api';
 import { useWishlistCount, useCartCount } from '../features/chat/chatStore';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, createSocketClient } from '@haat/shared-frontend';
 
 const POPULAR_LOCATIONS = [
   'All India',
@@ -41,6 +43,32 @@ export function BuyerHeader() {
   const categories = useCategoryTree();
   const wishlistCount = useWishlistCount();
   const cartCount = useCartCount();
+
+  const queryClient = useQueryClient();
+  const unreadChatQuery = useQuery({
+    queryKey: ['buyer', 'chat', 'unread-count'],
+    queryFn: async () => {
+      const res = await api.get<{ unreadCount: number }>('/chat/unread-count');
+      return res.data?.unreadCount || 0;
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 3000,
+  });
+  const unreadChatCount = unreadChatQuery.data ?? 0;
+
+  // Real-time Socket.IO synchronization for unread customer messages
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = createSocketClient();
+    const handleNewMessage = () => {
+      void queryClient.invalidateQueries({ queryKey: ['buyer', 'chat', 'unread-count'] });
+    };
+    socket.on('new_message', handleNewMessage);
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.disconnect();
+    };
+  }, [isAuthenticated, queryClient]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('Location');
@@ -419,6 +447,14 @@ export function BuyerHeader() {
                         <span>Quotations & RFQs</span>
                         <ChevronRight size={14} className="text-gray-300 group-hover:text-[#16135c] transition-colors" />
                       </Link>
+                      <Link
+                        to="/addresses"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="group flex w-full items-center justify-between rounded-xl px-3.5 py-2 text-sm font-medium text-[#21313c] hover:bg-[#f0f4ff] hover:text-[#16135c] transition-colors"
+                      >
+                        <span>Addresses</span>
+                        <ChevronRight size={14} className="text-gray-300 group-hover:text-[#16135c] transition-colors" />
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
@@ -474,6 +510,11 @@ export function BuyerHeader() {
               aria-label="All Chats & Seller Inquiries"
             >
               <MessageSquare size={21} strokeWidth={1.8} />
+              {unreadChatCount > 0 ? (
+                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#16135c] px-1 text-[10px] font-bold text-white leading-none">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              ) : null}
             </button>
 
             {/* Shopping Cart Icon with dynamic count badge */}

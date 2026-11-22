@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   type UserRole,
   type SellerOnboardingInput,
@@ -54,6 +55,7 @@ interface SellerAuthContextValue {
 const SellerAuthContext = createContext<SellerAuthContextValue | null>(null);
 
 export function SellerAuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<SellerUser | null>(null);
   const [seller, setSeller] = useState<SellerStoreProfile | null>(null);
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
@@ -256,10 +258,33 @@ export function SellerAuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // Real-time catalog & category sync for seller console
+    socket.on(SOCKET_EVENTS.CATEGORY_CREATED, () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'categories'] });
+    });
+    socket.on(SOCKET_EVENTS.CATEGORY_UPDATED, () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'categories'] });
+    });
+    socket.on(SOCKET_EVENTS.CATEGORY_DELETED, () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'categories'] });
+    });
+    socket.on(SOCKET_EVENTS.PRODUCT_CREATED, () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'products'] });
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'dashboard'] });
+    });
+    socket.on(SOCKET_EVENTS.PRODUCT_UPDATED, () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'products'] });
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'dashboard'] });
+    });
+    socket.on(SOCKET_EVENTS.PRODUCT_DELETED, () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'products'] });
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'dashboard'] });
+    });
+
     return () => {
       socket.disconnect();
     };
-  }, [status, seller?.id]);
+  }, [status, seller?.id, queryClient]);
 
   return (
     <SellerAuthContext.Provider

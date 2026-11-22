@@ -80,7 +80,7 @@ export async function getPublicStorefront(slug: string) {
     isApproved: true,
     sellerStatus: 'ACTIVE',
   })
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: 1, _id: 1 })
     .lean();
 
   return {

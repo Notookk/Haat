@@ -3990,3 +3990,193 @@ When an active seller is blocked by an administrator:
   - `pnpm test`: 76/76 unit and integration tests passing.
   - Design & Theme: 100% adherence to FreshCart color palette (`#16135c` navy, `#0AAD0A` green) and existing token system.
 
+
+### 17.106 Payment Mode Display Resolution (COD vs ONLINE) & COD Reassurance Overhaul
+- **User Requirement**:
+  - *"in cod why there is payment pending showing show there online or cod not pending"* (accompanied by screenshot of `localhost:7000/orders` in Seller Console where PAYMENT column was displaying `[ PENDING ]` and modal was showing `[ PENDING ] (COD)`).
+- **Root Cause**:
+  - Cash on Delivery orders store `paymentStatus: 'PENDING'` in the database until the delivery rider receives physical cash/UPI at the doorstep upon arrival.
+  - Displaying raw `paymentStatus` in the UI caused users and sellers to see an alarming `PENDING` badge and triggered "Pay Now via Razorpay" alert banners as if payment had failed or prepayment was mandatory.
+- **Implementation Details**:
+  1. **Seller Console Orders Page ([SellerOrdersPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerOrdersPage.tsx))**:
+     - `PAYMENT` table column now shows payment mode: `<Badge tone={order.paymentMethod === 'COD' ? 'brand' : order.paymentStatus === 'PAID' ? 'success' : 'warning'}>{order.paymentMethod === 'COD' ? 'COD' : 'ONLINE'}</Badge>`.
+     - Order Details modal now displays `COD (Cash on Delivery)` or `ONLINE · PAID` / `ONLINE · PENDING`.
+  2. **Buyer Order Details Page ([OrderDetailPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrderDetailPage.tsx))**:
+     - Defined `isOnlinePending = order.paymentMethod !== 'COD' && order.paymentStatus === 'PENDING'`.
+     - Top action alert banner:
+       - For online orders awaiting payment: Displays the Razorpay completion CTA.
+       - For COD orders: Displays a clean, reassuring blue card with `Banknote` icon, *"Cash on Delivery (COD) · ₹X • Pay on Arrival"*, and *"Please keep ₹X ready in cash or UPI to pay our delivery executive upon doorstep arrival."*
+     - Payment Summary sidebar:
+       - Status badge renders `Cash on Delivery (COD)` in blue or `Paid Online` / `Payment Pending` for online orders.
+       - Suppressed the "Pay Now via Razorpay" button on COD orders.
+  3. **Buyer Orders List ([OrdersPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrdersPage.tsx))**:
+     - Payment status chip renders `COD` (blue pill) or `ONLINE` (green/amber pill) instead of raw `PENDING`.
+  4. **Admin Sellers Console ([AdminSellersPage.tsx](file:///d:/Programes/Haat/admin/frontend/src/pages/AdminSellersPage.tsx))**:
+     - Order list renders `COD` or `ONLINE` badge.
+  5. **Tax Invoice & Backend Receipt Data ([TaxInvoiceModal.tsx](file:///d:/Programes/Haat/shared/frontend/src/components/TaxInvoiceModal.tsx), [orders.service.ts](file:///d:/Programes/Haat/buyer/backend/src/modules/orders/services/orders.service.ts))**:
+     - Tax invoice modal displays `Cash on Delivery (Pay on Arrival)` for COD orders.
+     - Added `paymentMethod: order.paymentMethod || 'ONLINE'` to backend receipt response payload.
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing (33 contracts + 26 admin + 18 seller).
+
+### 17.107 Modal Overlay Alignment (Portal & Non-Blurred Crisp Dark Backdrop)
+- **User Requirement**:
+  - *"it did not fixed the modal first one overlay must be like the second one fix the first one overlay"*
+  - The user compared Image 1 (Order Details modal in [SellerOrdersPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerOrdersPage.tsx)) against Image 2 (Tax Invoice modal in [TaxInvoiceModal.tsx](file:///d:/Programes/Haat/shared/frontend/src/components/TaxInvoiceModal.tsx)).
+- **Root Cause**:
+  1. The Order Details modal was rendered inline inside `<main>` of `SellerLayout` rather than being portaled to `document.body`.
+  2. The backdrop contained `backdrop-blur` which smudged and washed out background elements, whereas the Tax Invoice modal used a clean, sharp `bg-black/60` overlay mounted directly on `document.body` via `createPortal`.
+- **Implementation Details**:
+  1. In [SellerOrdersPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerOrdersPage.tsx):
+     - Imported `createPortal` from `'react-dom'`.
+     - Portaled the Order Details modal directly into `document.body`.
+     - Replaced the blurry backdrop with the exact same clean overlay as the Tax Invoice modal: `className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto animate-in fade-in duration-150"`.
+  2. Standardized `bg-black/60` (without blur) across [TaxInvoiceModal.tsx](file:///d:/Programes/Haat/shared/frontend/src/components/TaxInvoiceModal.tsx), [SellerDeliverySlotsPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerDeliverySlotsPage.tsx), [AddCategoryModal.tsx](file:///d:/Programes/Haat/seller/frontend/src/components/AddCategoryModal.tsx), [ProductEditorModal.tsx](file:///d:/Programes/Haat/seller/frontend/src/components/ProductEditorModal.tsx), [ProductViewModal.tsx](file:///d:/Programes/Haat/seller/frontend/src/components/ProductViewModal.tsx), and [AdminUsersPage.tsx](file:///d:/Programes/Haat/admin/frontend/src/pages/AdminUsersPage.tsx).
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing.
+
+### 17.108 Seller Header & Navigation Real-Time Unread Chat Badge
+- **User Requirement**:
+  - *"show number of unread messages in this in seller"* (accompanied by screenshot of top navbar in Seller Console highlighting the Chat icon button).
+- **Implementation Details**:
+  1. In [SellerLayout.tsx](file:///d:/Programes/Haat/seller/frontend/src/layouts/SellerLayout.tsx):
+     - Integrated React Query to fetch unread count from `GET /chat/unread-count` via `['seller', 'chat', 'unread-count']` with 3-second background polling (`refetchInterval: 3000`).
+     - Wired real-time Socket.IO listener: joins room for `seller.storeSlug` and invalidates `['seller', 'chat', 'unread-count']` instantly upon receiving `'new_message'`.
+     - Added unread badge pill to the **Top Header Chat Button**:
+       `<span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0AAD0A] px-1 text-[10px] font-bold text-white leading-none shadow-xs">` displaying the unread count (or `99+`).
+     - Added unread badge to the **Sidebar Navigation Rail** ("Customer Chat" item) for consistent visibility.
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing.
+
+### 17.109 Quotation Modal Quantity Input Backspace & Validation Fix
+- **User Requirement**:
+  - *"i am unable to cut the last digit i want to type 50 but i cant cut 1 fix it if its is empty then do not remove disabled button"* (accompanied by screenshot of the Custom Quotation input in [SellerChatPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerChatPage.tsx)).
+- **Root Cause**:
+  - `onChange={(e) => setQuoteQty(Math.max(1, parseInt(e.target.value) || 1))}` prevented backspacing/deleting the last digit because `parseInt("") || 1` always snapped back to `1`.
+  - The submit button ("Done") did not validate whether `quoteQty` was non-empty and greater than 0.
+- **Implementation Details**:
+  - In [SellerChatPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerChatPage.tsx):
+    - Changed `quoteQty` state to `string` (`useState<string>('10')`).
+    - Updated input `onChange` to `(e) => setQuoteQty(e.target.value)`, enabling users to freely delete, backspace, clear, and type any number (such as `50`).
+    - Updated the Done button's `disabled` prop to require a valid, non-empty, and positive quantity:
+      `disabled={!quoteUnitPriceRupees || parseFloat(quoteUnitPriceRupees) <= 0 || !quoteQty || parseInt(quoteQty, 10) <= 0 || sendMessageMutation.isPending}`.
+    - Updated quote calculation: `(parseFloat(quoteUnitPriceRupees) || 0) * 100 * (parseInt(quoteQty, 10) || 0)`.
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing.
+
+### 17.110 Buyer Header Unread Chat Badge & Custom Quote Card Standardization & Redemption
+- **User Requirements**:
+  1. *"show number of unread message here also in the buyer"* (referencing BuyerHeader chat icon button).
+  2. *"changr the second one colour to the one which all the other page have"* (custom quote card in [ChatPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/ChatPage.tsx) was rendered with bright neon green border/button instead of HAAT's signature `#16135c` deep navy theme).
+  3. *"second one button clicked send to cart when order done then disable the button here"* (clicking Add to Cart with custom quote price redirects to `/cart`, and when order checkout is completed, disables the quote button with "Order Completed (Quote Redeemed)").
+- **Root Cause & Enhancements**:
+  1. In [seller/backend/src/routes/index.ts](file:///d:/Programes/Haat/seller/backend/src/routes/index.ts), seller-sent messages previously had `isRead: true` hardcoded on line 548, preventing unread message counts from ever incrementing for the buyer. Fixed to `isRead: false`.
+  2. In [BuyerHeader.tsx](file:///d:/Programes/Haat/buyer/frontend/src/layouts/BuyerHeader.tsx), added React Query `['buyer', 'chat', 'unread-count']` hook querying `GET /chat/unread-count` and wired a real-time Socket.IO listener for `new_message` to invalidate the query. Standardized the chat badge styling to match the Cart badge identically: `absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#16135c] px-1 text-[10px] font-bold text-white leading-none`.
+  3. In [ChatMessage.ts](file:///d:/Programes/Haat/shared/backend/src/models/ChatMessage.ts), added `'ORDERED'` to the `quoteStatus` enum.
+  4. In [chatStore.ts](file:///d:/Programes/Haat/buyer/frontend/src/features/chat/chatStore.ts), added `quoteMessageId` to `CartItem`, implemented `getRedeemedQuoteIds()`, `addRedeemedQuoteIds(ids)`, and `useRedeemedQuoteIds()` state synchronization hook.
+  5. In [CheckoutPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/CheckoutPage.tsx), upon successful order creation, extracts quote message IDs from cart, stores them in redeemed quote storage, and notifies `POST /chat/quote/order`.
+  6. In [ChatPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/ChatPage.tsx):
+     - Redesigned the Custom Quote card: removed loud neon green styling and aligned with HAAT card standards (`rounded-2xl border border-gray-200/90 bg-white p-4 text-xs shadow-2xs`).
+     - Badges: `bg-blue-50 border border-blue-200 text-[#16135c]` with sparkles icon; pricing highlighted in `#16135c`.
+     - Button: Styled with HAAT primary navy `bg-[#16135c] hover:bg-[#12104b] text-white`.
+     - Order status check: `isQuoteOrdered = msg.quoteStatus === 'ORDERED' || redeemedQuoteIds.includes(String(msg._id))`.
+     - When `isQuoteOrdered`: renders disabled button `Order Completed (Quote Redeemed)` with `<CheckCircle2 size={15} className="text-emerald-600" />` and disabled styling.
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing.
+
+### 17.111 Delivery Fulfilment Stepper Segment Connecting Line Fix
+- **User Requirement**:
+  - *"wtf is this the line must touch upto the next one"* (accompanied by screenshot of the delivery progress tracker on [OrderDetailPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrderDetailPage.tsx) where the active progress line between "Order Placed" and "Confirmed" ended prematurely before reaching the "Confirmed" step circle).
+- **Root Cause**:
+  - Previously, the active fill line was rendered as an absolute `<div>` with `left-10` and `width: (currentStepIndex / 6) * 100%` across the outer container. Because the step icons were laid out using a 7-column CSS grid (`grid-cols-7`), calculating the width as a flat percentage of the parent container plus `left-10` did not align with the column centers, leaving an awkward 20-30px gap before the active step circle.
+- **Implementation Details**:
+  - In [OrderDetailPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrderDetailPage.tsx#L383-L435):
+    - Replaced the container-level absolute lines with column segment-based connecting lines inside `{FULFILMENT_STEPS.map((step, idx) => ...)}`.
+    - For each step `idx > 0`, rendered a line segment:
+      `className="absolute top-5 right-1/2 w-full h-1 -translate-y-1/2 z-0 transition-colors duration-300"`
+    - With `right-1/2` and `w-full`, each line segment starts at the exact horizontal center of the current step column (`50%`) and extends across to the exact horizontal center of the previous step column.
+    - Added `relative z-10` and solid backgrounds to the step circles so they mask the line endpoints behind them.
+    - Set active segment coloring: `currentStepIndex >= idx ? 'bg-[#16135c]' : 'bg-gray-200'`.
+    - This mathematically guarantees that the line connects center-to-center between step circles with zero gap at any screen width.
+- **Verification**:
+  - `pnpm --filter buyer-frontend typecheck`: 0 errors.
+
+### 17.114 Order Sorting Order (Latest First) & Comprehensive .gitignore Update
+- **User Requirements**:
+  1. *"latest one will be at first fix the order"* (accompanied by screenshot of [OrdersPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrdersPage.tsx) displaying older orders on top and the latest order at the bottom).
+  2. *"fix gitignore accordingly"*
+- **Root Cause & Fixes**:
+  1. **Order Sorting**:
+     - In [buyer/backend/src/modules/orders/services/orders.service.ts](file:///d:/Programes/Haat/buyer/backend/src/modules/orders/services/orders.service.ts), `listBuyerOrders` and `listSellerOrders` had `.sort({ createdAt: 1, _id: 1 })` (ascending). Updated to `.sort({ createdAt: -1, _id: -1 })` (descending, latest first).
+     - In [seller/backend/src/modules/orders/services/order.service.ts](file:///d:/Programes/Haat/seller/backend/src/modules/orders/services/order.service.ts), `listOrders` had `.sort({ createdAt: 1, _id: 1 })`. Updated to `.sort({ createdAt: -1, _id: -1 })`.
+     - In [OrdersPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrdersPage.tsx), updated `filteredOrders` with defensive client-side sorting: `.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())`.
+  2. **Comprehensive .gitignore**:
+     - Updated root [.gitignore](file:///d:/Programes/Haat/.gitignore) to thoroughly cover:
+       - Dependencies & package manager artifacts (`node_modules/`, `.pnpm-store/`, `.npm/`, `.yarn/`, `package-lock.json`, `yarn.lock`).
+       - Build and bundle outputs (`dist/`, `build/`, `out/`, `.cache/`, `.vite/`, `.vitest/`, `.vitest-cache/`, `.turbo/`, `.parcel-cache/`, `*.tsbuildinfo`, `.eslintcache`).
+       - Environment variants (`.env`, `.env.*`, `.env.local`, `.env.*.local`, excluding `.env.example`).
+       - Logs & debug traces (`*.log`, `npm-debug.log*`, `yarn-debug.log*`, `pnpm-debug.log*`, `lerna-debug.log*`).
+       - Test reports (`coverage/`, `*.lcov`, `.nyc_output/`, `test-results/`, `playwright-report/`).
+       - IDEs & Editors (`.vscode/*` except settings/extensions, `.idea/`, etc.).
+       - AI tooling & scratchpads (`.gemini/`, `.antigravity/`, `.system_generated/`, `scratch/`).
+       - OS files (`.DS_Store`, `Thumbs.db`, `ehthumbs.db`, `ehthumbs_vista.db`, `Desktop.ini`, `$RECYCLE.BIN/`).
+       - Temporary & backup files (`*.tmp`, `*.temp`, `*.bak`, `*.swp`, `*~`, `tmp/`, `temp/`).
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing.
+
+### 17.112 Delivery Stepper "Dispatched" / "Out for Delivery" Status Recognition Fix
+- **User Requirement**:
+  - *"when dispatch it is blank wtf bro"* (accompanied by screenshot of [OrderDetailPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrderDetailPage.tsx) where all 7 steps rendered as inactive, unfulfilled gray numbered circles when the seller marked the order as dispatched).
+- **Root Cause**:
+  - In [SellerOrdersPage.tsx](file:///d:/Programes/Haat/seller/frontend/src/pages/SellerOrdersPage.tsx), clicking the "Dispatch" button transitions the order's `fulfilmentStatus` to `'OUT_FOR_DELIVERY'`.
+  - In [OrderDetailPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrderDetailPage.tsx), the 6th step was hardcoded with `key: 'DISPATCHED'`. When the order had `fulfilmentStatus === 'OUT_FOR_DELIVERY'`, `FULFILMENT_STEPS.findIndex(...)` returned `-1`.
+  - With `currentStepIndex = -1`, `isPassed = currentStepIndex >= idx` evaluated to `false` for every step, causing all 7 steps to render as unfulfilled gray circles (1 through 7) with no progress fill.
+- **Implementation Details**:
+  - In [OrderDetailPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrderDetailPage.tsx#L36-L44):
+    - Added `aliases?: string[]` to `FulfilmentStep`.
+    - Added `aliases: ['OUT_FOR_DELIVERY', 'DISPATCH', 'SHIPPED', 'IN_TRANSIT']` to the "Dispatched" step.
+    - Added aliases for other equivalent seller states: `PENDING` for `PENDING_CONFIRMATION`, `ACCEPTED` for `CONFIRMED`, `IN_PROGRESS` for `PROCESSING`, `READY_FOR_DELIVERY` / `STAGED` for `READY_FOR_DISPATCH`, and `COMPLETED` for `DELIVERED`.
+    - Updated `currentStepIndex` calculation to match both `key` and `aliases` (case-insensitive):
+      ```tsx
+      const currentStepIndex = (() => {
+        const status = (order.fulfilmentStatus || '').toUpperCase();
+        const idx = FULFILMENT_STEPS.findIndex(
+          (s) => s.key === status || s.aliases?.includes(status),
+        );
+        if (idx !== -1) return idx;
+        return isCancelled ? -1 : 0;
+      })();
+      ```
+    - Added a safety fallback so uncancelled orders with unknown statuses will never render as completely blank.
+- **Verification**:
+  - `pnpm --filter buyer-frontend typecheck`: 0 errors.
+
+### 17.114 Order Sorting Order (Latest First) & Comprehensive .gitignore Update
+- **User Requirements**:
+  1. *"latest one will be at first fix the order"* (accompanied by screenshot of [OrdersPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrdersPage.tsx) displaying older orders on top and the latest order at the bottom).
+  2. *"fix gitignore accordingly"*
+- **Root Cause & Fixes**:
+  1. **Order Sorting**:
+     - In [buyer/backend/src/modules/orders/services/orders.service.ts](file:///d:/Programes/Haat/buyer/backend/src/modules/orders/services/orders.service.ts), `listBuyerOrders` and `listSellerOrders` had `.sort({ createdAt: 1, _id: 1 })` (ascending). Updated to `.sort({ createdAt: -1, _id: -1 })` (descending, latest first).
+     - In [seller/backend/src/modules/orders/services/order.service.ts](file:///d:/Programes/Haat/seller/backend/src/modules/orders/services/order.service.ts), `listOrders` had `.sort({ createdAt: 1, _id: 1 })`. Updated to `.sort({ createdAt: -1, _id: -1 })`.
+     - In [OrdersPage.tsx](file:///d:/Programes/Haat/buyer/frontend/src/pages/OrdersPage.tsx), updated `filteredOrders` with defensive client-side sorting: `.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())`.
+  2. **Comprehensive .gitignore**:
+     - Updated root [.gitignore](file:///d:/Programes/Haat/.gitignore) to thoroughly cover:
+       - Dependencies & package manager artifacts (`node_modules/`, `.pnpm-store/`, `.npm/`, `.yarn/`, `package-lock.json`, `yarn.lock`).
+       - Build and bundle outputs (`dist/`, `build/`, `out/`, `.cache/`, `.vite/`, `.vitest/`, `.vitest-cache/`, `.turbo/`, `.parcel-cache/`, `*.tsbuildinfo`, `.eslintcache`).
+       - Environment variants (`.env`, `.env.*`, `.env.local`, `.env.*.local`, excluding `.env.example`).
+       - Logs & debug traces (`*.log`, `npm-debug.log*`, `yarn-debug.log*`, `pnpm-debug.log*`, `lerna-debug.log*`).
+       - Test reports (`coverage/`, `*.lcov`, `.nyc_output/`, `test-results/`, `playwright-report/`).
+       - IDEs & Editors (`.vscode/*` except settings/extensions, `.idea/`, etc.).
+       - AI tooling & scratchpads (`.gemini/`, `.antigravity/`, `.system_generated/`, `scratch/`).
+       - OS files (`.DS_Store`, `Thumbs.db`, `ehthumbs.db`, `ehthumbs_vista.db`, `Desktop.ini`, `$RECYCLE.BIN/`).
+       - Temporary & backup files (`*.tmp`, `*.temp`, `*.bak`, `*.swp`, `*~`, `tmp/`, `temp/`).
+- **Verification**:
+  - `pnpm -r typecheck`: 0 errors across all 9 workspaces.
+  - `pnpm test`: 77/77 tests passing.

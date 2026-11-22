@@ -31,6 +31,10 @@ describe('formatPaise', () => {
   it('can force decimals for invoices', () => {
     expect(formatPaise(49950, { decimals: true })).toBe('₹499.50');
   });
+
+  it('formats fractional paise amounts with 2 decimals automatically', () => {
+    expect(formatPaise(4250)).toBe('₹42.50');
+  });
 });
 
 describe('sumPaise and mulPaise', () => {

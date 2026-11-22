@@ -43,13 +43,14 @@ export interface FormatPaiseOptions {
   decimals?: boolean;
 }
 
-/** Indian digit grouping: 15000000 paise -> "₹1,50,000". */
+/** Indian digit grouping: 15000000 paise -> "₹1,50,000". Displays paise when not whole rupees or decimals: true. */
 export function formatPaise(paise: number, options: FormatPaiseOptions = {}): string {
   const { symbol = true, decimals = false } = options;
   const rupees = paiseToRupees(paise);
+  const hasPaise = decimals || Math.abs(Math.round(paise)) % 100 !== 0;
   const formatted = new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: decimals ? 2 : 0,
-    maximumFractionDigits: decimals ? 2 : 0,
+    minimumFractionDigits: hasPaise ? 2 : 0,
+    maximumFractionDigits: hasPaise ? 2 : 0,
   }).format(rupees);
   return symbol ? `₹${formatted}` : formatted;
 }

@@ -1,5 +1,5 @@
 import { ERROR_CODES } from '@haat/shared-contracts';
-import { AppError, AuditLog, deleteCloudinaryImages, extractCloudinaryPublicId } from '@haat/shared-backend';
+import { AppError, AuditLog, deleteCloudinaryImages, extractCloudinaryPublicId, realtimeEventBus } from '@haat/shared-backend';
 import { adminCategoryModel } from '../models/category.model';
 import type { AdminCategoryCreateInput, AdminCategoryUpdateInput } from '../validators/category.validator';
 
@@ -53,6 +53,14 @@ export const adminCategoryService = {
       metadata: { name: created.name, slug: created.slug, path: created.path },
     });
 
+    void realtimeEventBus.publishCategoryCreated({
+      categoryId: String(created._id),
+      action: 'CREATED',
+      name: created.name,
+      slug: created.slug,
+      timestamp: new Date().toISOString(),
+    });
+
     return created;
   },
 
@@ -71,6 +79,16 @@ export const adminCategoryService = {
       entityId: id,
       metadata: { changes: input },
     });
+
+    if (updated) {
+      void realtimeEventBus.publishCategoryUpdated({
+        categoryId: id,
+        action: 'UPDATED',
+        name: updated.name,
+        slug: updated.slug,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return updated;
   },
@@ -101,6 +119,14 @@ export const adminCategoryService = {
       entityType: 'Category',
       entityId: id,
       metadata: { name: existing.name },
+    });
+
+    void realtimeEventBus.publishCategoryDeleted({
+      categoryId: id,
+      action: 'DELETED',
+      name: existing.name,
+      slug: existing.slug,
+      timestamp: new Date().toISOString(),
     });
 
     return deactivated;

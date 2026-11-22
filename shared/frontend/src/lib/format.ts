@@ -1,11 +1,13 @@
 export { formatPaise, rupeesToPaise, paiseToRupees, resolveUnitPricePaise } from '@haat/shared-contracts';
 
-/** Prices on browse surfaces: no decimals, Indian grouping. */
+/** Prices on browse surfaces: shows 2 decimals if paise exist, no decimals if whole rupees. */
 export function money(paise: number): string {
+  const hasPaise = Math.abs(Math.round(paise)) % 100 !== 0;
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: hasPaise ? 2 : 0,
+    maximumFractionDigits: hasPaise ? 2 : 0,
   }).format(paise / 100);
 }
 

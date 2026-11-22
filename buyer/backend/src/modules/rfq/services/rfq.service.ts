@@ -6,6 +6,7 @@ import {
   SellerProfile,
   Order,
   AppError,
+  realtimeEventBus,
 } from '@haat/shared-backend';
 import type {
   SubmitRfqInput,
@@ -248,6 +249,19 @@ export async function acceptQuotation(buyerId: string, rfqId: string, quotationI
   await quotation.save();
 
   await Rfq.findByIdAndUpdate(rfqId, { status: 'QUOTED' });
+
+  // Broadcast real-time order creation across platform (Seller & Admin)
+  void realtimeEventBus.publishOrderCreated({
+    orderId: String(order._id),
+    orderNumber: order.orderNumber,
+    sellerId: String(order.sellerId),
+    buyerId: String(order.buyerId),
+    totalAmountPaise: order.totalAmountPaise,
+    deliveryDate: order.deliveryDate,
+    fulfilmentStatus: order.fulfilmentStatus,
+    paymentStatus: order.paymentStatus,
+    createdAt: (order as any).createdAt || new Date().toISOString(),
+  });
 
   return { order: order.toObject(), quotation: quotation.toObject() };
 }

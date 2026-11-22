@@ -12,6 +12,7 @@ export interface CategoryNode {
   productCount: number;
   imageUrl?: string | null;
   imagePublicId?: string | null;
+  createdAt?: string | Date | null;
   children: CategoryNode[];
 }
 
@@ -25,6 +26,7 @@ interface CategoryLike {
   productCount: number;
   imageUrl?: string | null;
   imagePublicId?: string | null;
+  createdAt?: string | Date | null;
 }
 
 export function toCategoryNode(category: CategoryLike): CategoryNode {
@@ -32,12 +34,13 @@ export function toCategoryNode(category: CategoryLike): CategoryNode {
     id: String(category._id),
     name: category.name,
     slug: category.slug,
-    path: category.path,
-    depth: category.depth,
-    displayOrder: category.displayOrder,
-    productCount: category.productCount,
+    path: category.path || category.slug,
+    depth: typeof category.depth === 'number' ? category.depth : 0,
+    displayOrder: typeof category.displayOrder === 'number' ? category.displayOrder : 0,
+    productCount: typeof category.productCount === 'number' ? category.productCount : 0,
     imageUrl: category.imageUrl ?? null,
     imagePublicId: category.imagePublicId ?? null,
+    createdAt: category.createdAt ?? null,
     children: [],
   };
 }

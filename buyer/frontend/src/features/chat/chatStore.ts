@@ -7,6 +7,11 @@ export interface CartItem {
   quantity: number;
   image?: string | null;
   sellerSlug?: string;
+  isCustomQuote?: boolean;
+  quoteMessageId?: string;
+  customQuoteNotes?: string;
+  originalPricePaise?: number;
+  isWholesale?: boolean;
 }
 
 export interface ChatContext {
@@ -33,10 +38,54 @@ export interface ChatMessageItem {
   productImage?: string | null;
   productPricePaise?: number | null;
   createdAt?: string;
+  isQuote?: boolean;
+  quotePricePaise?: number | null;
+  quoteQuantity?: number | null;
+  quoteTotalPricePaise?: number | null;
+  quoteNotes?: string | null;
+  quoteStatus?: 'OFFERED' | 'ACCEPTED' | 'EXPIRED';
 }
 
 const WISHLIST_KEY = 'haat_buyer_wishlist';
 const CART_KEY = 'haat_buyer_cart';
+const REDEEMED_QUOTES_KEY = 'haat_buyer_redeemed_quotes';
+
+// ---- REDEEMED QUOTES HELPERS ----
+export function getRedeemedQuoteIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(REDEEMED_QUOTES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addRedeemedQuoteIds(ids: string[]) {
+  if (typeof window === 'undefined' || !ids.length) return;
+  try {
+    const existing = getRedeemedQuoteIds();
+    const merged = Array.from(new Set([...existing, ...ids]));
+    localStorage.setItem(REDEEMED_QUOTES_KEY, JSON.stringify(merged));
+    window.dispatchEvent(new CustomEvent('haat_quotes_updated', { detail: { ids: merged } }));
+  } catch {
+    // Ignore quota errors
+  }
+}
+
+export function useRedeemedQuoteIds(): string[] {
+  const [ids, setIds] = useState<string[]>(() => getRedeemedQuoteIds());
+  useEffect(() => {
+    const handleUpdate = () => setIds(getRedeemedQuoteIds());
+    window.addEventListener('haat_quotes_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('haat_quotes_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+  return ids;
+}
 
 // ---- WISHLIST HELPERS ----
 export function getWishlistIds(): string[] {
@@ -120,11 +169,20 @@ export function isProductInCart(productId: string): boolean {
 
 export function addProductToCart(item: CartItem): number {
   const current = getCartItems();
-  const idx = current.findIndex((c) => c.productId === item.productId);
+  const idx = current.findIndex(
+    (c) => c.productId === item.productId && Boolean(c.isCustomQuote) === Boolean(item.isCustomQuote),
+  );
   let next: CartItem[];
   if (idx >= 0) {
     next = [...current];
-    next[idx] = { ...next[idx], quantity: next[idx].quantity + item.quantity };
+    next[idx] = {
+      ...next[idx],
+      quantity: item.isCustomQuote ? item.quantity : next[idx].quantity + item.quantity,
+      pricePaise: item.pricePaise,
+      isCustomQuote: item.isCustomQuote,
+      customQuoteNotes: item.customQuoteNotes,
+      originalPricePaise: item.originalPricePaise,
+    };
   } else {
     next = [...current, item];
   }

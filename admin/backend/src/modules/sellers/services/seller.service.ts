@@ -1,5 +1,19 @@
 import { ERROR_CODES, isValidSellerStatusTransition, type SellerStatus } from '@haat/shared-contracts';
-import { AppError, AuditLog, SellerProfile, Product, RefreshToken, User, realtimeEventBus, Order } from '@haat/shared-backend';
+import {
+  AppError,
+  AuditLog,
+  SellerProfile,
+  Product,
+  RefreshToken,
+  User,
+  realtimeEventBus,
+  Order,
+  DeliverySlot,
+  initializeDefaultDeliverySlots,
+  DeliveryBlackout,
+  ChatMessage,
+  ChatConversation,
+} from '@haat/shared-backend';
 import { adminSellerModel, type SellerFilter } from '../models/seller.model';
 
 export const adminSellerService = {
@@ -190,6 +204,9 @@ export const adminSellerService = {
 
     // Update all existing products of this seller so they immediately become visible in Buyer catalog
     await Product.updateMany({ sellerId: updated._id }, { $set: { sellerStatus: 'ACTIVE' } });
+
+    // Initialize 3 default delivery slots ONCE when seller is verified and approved by admin
+    await initializeDefaultDeliverySlots(updated._id);
 
     // Immutable Audit Log
     await AuditLog.create({
@@ -600,5 +617,83 @@ export const adminSellerService = {
     });
 
     return adminSellerModel.findSellerById(params.sellerId);
+  },
+
+  async deleteSeller(params: {
+    sellerId: string;
+    adminUserId: string;
+    adminRole: string;
+    ipAddress?: string;
+  }) {
+    const seller = await SellerProfile.findById(params.sellerId);
+    if (!seller) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Seller not found.', 404);
+    }
+
+    const sellerId = seller._id.toString();
+    const storeSlug = seller.storeSlug;
+    const storeName = seller.storeName;
+
+    // 1. Delete all products belonging to this seller
+    const products = await Product.find({ sellerId: seller._id }).lean();
+    await Product.deleteMany({ sellerId: seller._id });
+
+    // 2. Delete delivery slots & blackouts
+    await DeliverySlot.deleteMany({ sellerId: seller._id });
+    await DeliveryBlackout.deleteMany({ sellerId: seller._id });
+
+    // 3. Delete chat messages & conversations
+    if (storeSlug) {
+      await ChatMessage.deleteMany({ sellerSlug: storeSlug });
+      await ChatConversation.deleteMany({ sellerSlug: storeSlug });
+    }
+
+    // 4. Revoke tokens for the user
+    if (seller.userId) {
+      await RefreshToken.deleteMany({ userId: seller.userId });
+    }
+
+    // 5. Delete the SellerProfile record
+    await SellerProfile.findByIdAndDelete(seller._id);
+
+    // 6. Record immutable Audit Log
+    await AuditLog.create({
+      actorUserId: params.adminUserId,
+      action: 'SELLER_DELETED',
+      entityType: 'SellerProfile',
+      entityId: sellerId,
+      metadata: {
+        storeName,
+        storeSlug,
+        deletedProductsCount: products.length,
+      },
+      ipAddress: params.ipAddress ?? null,
+    });
+
+    // 7. Publish Real-time events to all clients
+    await realtimeEventBus.publishCatalogVisibilityChanged({
+      sellerId,
+      sellerStatus: 'BLOCKED',
+      action: 'PRODUCTS_HIDDEN',
+      timestamp: new Date().toISOString(),
+    });
+
+    await realtimeEventBus.publishAdminSellerUpdated({
+      sellerId,
+      storeName,
+      status: 'BLOCKED',
+      statusVersion: (seller.statusVersion || 1) + 1,
+      isVerified: false,
+      action: 'BLOCKED',
+      actorId: params.adminUserId,
+      reason: 'Seller permanently deleted by admin',
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      message: `Seller "${storeName}" and associated catalog deleted successfully.`,
+      sellerId,
+    };
   },
 };

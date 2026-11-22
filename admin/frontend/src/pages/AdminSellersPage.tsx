@@ -18,6 +18,7 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import { SOCKET_EVENTS, type SellerStatus } from '@haat/shared-contracts';
 import {
@@ -31,6 +32,7 @@ import {
   formatDate,
   money,
   showToast,
+  showConfirm,
   getAccessToken,
   createSocketClient,
   TrendAreaChart,
@@ -265,16 +267,41 @@ export function AdminSellersPage() {
       token,
     });
 
-    socket.on(SOCKET_EVENTS.SELLER_STATUS_CHANGED, () => {
+    const handleInvalidate = () => {
       invalidateQueries();
-    });
+    };
 
+    socket.on(SOCKET_EVENTS.SELLER_STATUS_CHANGED, handleInvalidate);
     socket.on(SOCKET_EVENTS.APPLICATION_CREATED, () => {
-      invalidateQueries();
+      handleInvalidate();
       showToast.info('New Registration', 'A merchant submitted a store registration.');
     });
+    socket.on(SOCKET_EVENTS.ADMIN_SELLER_UPDATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.SELLER_APPROVED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.SELLER_REJECTED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.SELLER_BLOCKED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.SELLER_UNBLOCKED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.STORE_UPDATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.PRODUCT_CREATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.PRODUCT_UPDATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.PRODUCT_DELETED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.ORDER_CREATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.ORDER_STATUS_CHANGED, handleInvalidate);
 
     return () => {
+      socket.off(SOCKET_EVENTS.SELLER_STATUS_CHANGED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.APPLICATION_CREATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.ADMIN_SELLER_UPDATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.SELLER_APPROVED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.SELLER_REJECTED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.SELLER_BLOCKED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.SELLER_UNBLOCKED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.STORE_UPDATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.PRODUCT_CREATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.PRODUCT_UPDATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.PRODUCT_DELETED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.ORDER_CREATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.ORDER_STATUS_CHANGED, handleInvalidate);
       socket.disconnect();
     };
   }, [queryClient]);
@@ -352,6 +379,36 @@ export function AdminSellersPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (sellerId: string) => {
+      return api.delete<{ message: string }>(`/api/v1/admin/sellers/${sellerId}`);
+    },
+    onSuccess: () => {
+      if (inspectingSeller) {
+        setInspectingSeller(null);
+      }
+      invalidateQueries();
+      showToast.success('Seller Deleted', 'Seller profile and store catalog permanently deleted.');
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Delete failed.';
+      showToast.error('Delete Failed', msg);
+    },
+  });
+
+  const handleDeleteSeller = async (seller: SellerItem) => {
+    const confirmed = await showConfirm({
+      title: 'Delete Seller?',
+      text: `Are you sure you want to permanently delete store "${seller.storeName}"? This action cannot be undone and will delete the seller profile, store catalog, and related records.`,
+      confirmButtonText: 'Yes, delete permanently',
+      cancelButtonText: 'Cancel',
+    });
+
+    if (confirmed) {
+      deleteMutation.mutate(seller._id);
+    }
+  };
+
   const handleClearSearch = () => {
     setSearchTerm('');
     const next = new URLSearchParams(searchParams);
@@ -389,6 +446,12 @@ export function AdminSellersPage() {
           <p className="mt-1 text-caption text-ink-500">
             Directory of registered merchant accounts, verification controls, and business performance metrics.
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live Sync
+          </span>
         </div>
       </div>
 
@@ -698,6 +761,18 @@ export function AdminSellersPage() {
                         >
                           <TrendingUp className="h-4 w-4" />
                         </button>
+
+                        {/* 7. Delete Seller Action */}
+                        <button
+                          type="button"
+                          aria-label="Delete Seller"
+                          title="Delete Seller"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => handleDeleteSeller(seller)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1002,6 +1077,20 @@ export function AdminSellersPage() {
                       Unblock Seller
                     </Button>
                   )}
+
+                  {/* Delete button */}
+                  <Button
+                    variant="danger"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      const s = inspectingSeller;
+                      void handleDeleteSeller(s);
+                    }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete Seller
+                  </Button>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -1357,8 +1446,16 @@ export function AdminSellersPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="text-micro font-bold uppercase rounded-md bg-emerald-50 text-emerald-700 px-2 py-0.5">
-                          {o.paymentStatus}
+                        <span
+                          className={`text-micro font-bold uppercase rounded-md px-2 py-0.5 ${
+                            o.paymentMethod === 'COD'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : o.paymentStatus === 'PAID'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {o.paymentMethod === 'COD' ? 'COD' : 'ONLINE'}
                         </span>
                         <Button
                           variant="outline"

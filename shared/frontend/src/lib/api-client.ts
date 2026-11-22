@@ -127,7 +127,11 @@ function buildRequestUrl(path: string): string {
 }
 
 async function send(path: string, options: RequestOptions): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (options.method && options.method !== 'GET') headers['X-Requested-With'] = 'XMLHttpRequest';
@@ -135,6 +139,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
   return fetch(buildRequestUrl(path), {
     method: options.method ?? 'GET',
     headers,
+    cache: 'no-cache',
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     credentials: 'include',
     signal: options.signal,
@@ -166,11 +171,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) => apiRequest<T>(path, { signal }),
-  post: <T>(path: string, body: unknown, skipRefresh = false) =>
+  post: <T>(path: string, body: unknown = {}, skipRefresh = false) =>
     apiRequest<T>(path, { method: 'POST', body, skipRefresh }),
   put: <T>(path: string, body: unknown) => apiRequest<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body: unknown) => apiRequest<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'DELETE', body }),
 };
 
 /** Auth calls that must not recurse through the refresh interceptor. */

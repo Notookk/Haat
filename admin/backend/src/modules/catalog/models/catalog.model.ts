@@ -41,7 +41,7 @@ export const adminCatalogModel = {
       Product.find(trustedQuery)
         .populate('categoryId', 'name slug')
         .populate('sellerId', 'storeName storeSlug gstin')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: 1, _id: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),

@@ -3,7 +3,7 @@ import type { AdminCategoryCreateInput, AdminCategoryUpdateInput } from '../vali
 
 export const adminCategoryModel = {
   async listAllCategories() {
-    return Category.find().sort({ displayOrder: 1, name: 1 }).lean();
+    return Category.find().sort({ createdAt: 1, _id: 1 }).lean();
   },
 
   async findCategoryById(id: string) {

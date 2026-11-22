@@ -49,7 +49,7 @@ export const adminSellerModel = {
     const [sellers, total] = await Promise.all([
       SellerProfile.find(query)
         .populate('userId', 'fullName phoneNumber email isActive')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: 1, _id: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),

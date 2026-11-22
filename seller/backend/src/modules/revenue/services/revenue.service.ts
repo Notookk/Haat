@@ -40,7 +40,7 @@ export const sellerRevenueService = {
         sellerId,
         $or: [{ paymentStatus: 'PAID' }, { fulfilmentStatus: 'DELIVERED' }],
       })
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: 1, _id: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('buyerId', 'fullName phoneNumber')

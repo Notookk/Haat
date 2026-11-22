@@ -11,6 +11,7 @@ import { rfqRouter, sellerRfqRouter } from '../modules/rfq/routes/rfq.routes';
 import { ordersRouter, sellerOrdersRouter } from '../modules/orders/routes/orders.routes';
 import { paymentsRouter } from '../modules/payments/routes/payments.routes';
 import { chatRouter, sellerChatRouter } from '../modules/chat/routes/chat.routes';
+import { addressesRouter } from '../modules/addresses/addresses.routes';
 import { asyncHandler, sendSuccess, ChatMessage, HttpStatus } from '@haat/shared-backend';
 
 export const buyerApiRouter = Router();
@@ -35,6 +36,7 @@ buyerApiRouter.use('/rfq', rfqRouter);
 buyerApiRouter.use('/seller/rfq', sellerRfqRouter);
 buyerApiRouter.use('/orders', ordersRouter);
 buyerApiRouter.use('/seller/orders', sellerOrdersRouter);
+buyerApiRouter.use('/addresses', addressesRouter);
 buyerApiRouter.use('/payments', paymentsRouter);
 buyerApiRouter.use('/chat', chatRouter);
 buyerApiRouter.use('/seller/chat', sellerChatRouter);
@@ -44,7 +46,7 @@ buyerApiRouter.get(
   '/chat/messages',
   asyncHandler(async (req, res) => {
     const seller = String(req.query.seller || 'abcd-store').toLowerCase();
-    const messages = await ChatMessage.find({ sellerSlug: seller }).sort({ createdAt: 1 }).limit(100).lean();
+    const messages = await ChatMessage.find({ sellerSlug: seller, deletedForBuyer: { $ne: true } }).sort({ createdAt: 1 }).limit(100).lean();
     return sendSuccess(res, { messages });
   }),
 );
