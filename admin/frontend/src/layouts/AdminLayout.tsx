@@ -6,17 +6,31 @@ import {
   Users,
   Store,
   FolderTree,
+  ShoppingBag,
+  CreditCard,
+  PackageSearch,
+  FileText,
   LogOut,
   ChevronDown,
 } from 'lucide-react';
 import { useAdminAuth } from '../features/auth/AdminAuthProvider';
 import { showToast } from '@haat/shared-frontend';
 
-const navItems = [
+const navItems: Array<{
+  to: string;
+  label: string;
+  icon: any;
+  end: boolean;
+  badge?: string;
+}> = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/buyers', label: 'Buyers', icon: Users, end: false },
-  { to: '/sellers', label: 'Sellers', icon: Store, end: false },
+  { to: '/orders', label: 'Orders', icon: ShoppingBag, end: false },
+  { to: '/transactions', label: 'Transactions', icon: CreditCard, end: false, badge: 'WIP' },
+  { to: '/catalog', label: 'Catalog', icon: PackageSearch, end: false },
   { to: '/categories', label: 'Categories', icon: FolderTree, end: false },
+  { to: '/sellers', label: 'Sellers', icon: Store, end: false },
+  { to: '/buyers', label: 'Buyers', icon: Users, end: false },
+  { to: '/audit-logs', label: 'Audit Logs', icon: FileText, end: false },
 ];
 
 export function AdminLayout() {
@@ -86,6 +100,11 @@ export function AdminLayout() {
             >
               <item.icon className="h-4 w-4 shrink-0 text-brand-600" />
               <span>{item.label}</span>
+              {item.badge && (
+                <span className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                  {item.badge}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

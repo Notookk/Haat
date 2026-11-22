@@ -22,7 +22,7 @@ import {
   MapPin,
   CheckCheck,
 } from 'lucide-react';
-import { api, money, showToast } from '@haat/shared-frontend';
+import { api, money, showToast, createSocketClient } from '@haat/shared-frontend';
 import { useAuth } from '../features/auth/AuthProvider';
 
 export interface ChatMessageItem {
@@ -232,6 +232,40 @@ export function ChatPage() {
 
   useEffect(() => {
     void fetchMessages();
+
+    // 1. Attach real-time Socket.IO connection for instant sub-second delivery
+    const socket = createSocketClient({
+      url: window.location.origin.includes('localhost') ? 'http://localhost:4000' : undefined,
+    });
+
+    socket.emit('join_chat', { sellerSlug: activeSellerSlug });
+
+    socket.on('new_message', (incoming: ChatMessageItem) => {
+      if (incoming.sellerSlug.toLowerCase() === activeSellerSlug.toLowerCase()) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id && incoming._id && m._id === incoming._id)) return prev;
+          return [...prev, incoming];
+        });
+      }
+    });
+
+    // 2. Continuous silent sync loop (every 2.5s) to guarantee messages arrive even during websocket reconnects
+    const pollTimer = setInterval(() => {
+      void fetchMessages(true);
+    }, 2500);
+
+    // 3. Instant sync whenever customer refocuses the browser window/tab
+    const handleFocus = () => {
+      void fetchMessages(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(pollTimer);
+      window.removeEventListener('focus', handleFocus);
+      socket.emit('leave_chat', { sellerSlug: activeSellerSlug });
+      socket.disconnect();
+    };
   }, [activeSellerSlug, isAuthenticated]);
 
   // Constrain auto-scrolling to the internal messages container (never jump browser window)

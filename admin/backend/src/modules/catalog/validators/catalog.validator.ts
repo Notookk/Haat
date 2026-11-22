@@ -13,7 +13,7 @@ export type CatalogListQuery = z.infer<typeof catalogListQuerySchema>;
 
 export const moderateProductSchema = z.object({
   isApproved: z.boolean(),
-  reason: z.string().trim().min(3, 'Moderation reason must be at least 3 characters').max(500),
+  reason: z.string().trim().min(2, 'Moderation reason must be at least 2 characters').max(500),
 });
 
 export type ModerateProductInput = z.infer<typeof moderateProductSchema>;

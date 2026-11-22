@@ -16,6 +16,7 @@ import {
   CreditCard,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
 import {
   api,
@@ -30,6 +31,7 @@ import {
   showPrompt,
   createSocketClient,
   getAccessToken,
+  TaxInvoiceModal,
   type Tone,
 } from '@haat/shared-frontend';
 import { SOCKET_EVENTS } from '@haat/shared-contracts';
@@ -149,6 +151,17 @@ export function SellerOrdersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [invoiceOrderId, setInvoiceOrderId] = useState<string | null>(null);
+
+  const { data: invoiceData, isLoading: isInvoiceLoading } = useQuery({
+    queryKey: ['seller', 'order', 'receipt', invoiceOrderId],
+    queryFn: async () => {
+      if (!invoiceOrderId) return null;
+      const res = await api.get<{ receipt: any }>(`/api/v1/seller/orders/${invoiceOrderId}/receipt`);
+      return res.data.receipt;
+    },
+    enabled: Boolean(invoiceOrderId),
+  });
 
   // Debounced live search
   useEffect(() => {
@@ -481,6 +494,17 @@ export function SellerOrdersPage() {
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
+
+                        {/* View Tax Invoice Button */}
+                        <button
+                          type="button"
+                          title="View Tax Invoice"
+                          onClick={() => setInvoiceOrderId(order.id)}
+                          className="flex h-7 items-center gap-1 px-2 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 transition-colors cursor-pointer text-xs font-semibold"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>Invoice</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -766,15 +790,33 @@ export function SellerOrdersPage() {
                     )}
                   </div>
 
-                  <Button variant="secondary" onClick={() => setSelectedOrderId(null)}>
-                    Close
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => setInvoiceOrderId(currentOrder.id)}
+                    >
+                      <FileText className="h-4 w-4 mr-1.5" />
+                      View Tax Invoice
+                    </Button>
+                    <Button variant="secondary" onClick={() => setSelectedOrderId(null)}>
+                      Close
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Tax Invoice Modal */}
+      <TaxInvoiceModal
+        isOpen={Boolean(invoiceOrderId)}
+        onClose={() => setInvoiceOrderId(null)}
+        invoiceData={invoiceData || null}
+        isLoading={isInvoiceLoading}
+      />
     </div>
   );
 }

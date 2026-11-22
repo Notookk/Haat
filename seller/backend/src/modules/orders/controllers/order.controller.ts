@@ -34,6 +34,12 @@ export const getSellerOrderHandler = asyncHandler(async (req: Request, res: Resp
   return sendSuccess(res, { order });
 });
 
+export const getSellerOrderReceiptHandler = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = getSellerId(req);
+  const receipt = await sellerOrderService.getOrderReceipt(sellerId, req.params.id);
+  return sendSuccess(res, { receipt });
+});
+
 export const updateSellerOrderStatusHandler = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = getSellerId(req);
   const parsed = updateStatusSchema.parse(req.body);

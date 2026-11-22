@@ -112,6 +112,16 @@ export class RealtimeEventBus {
         break;
       }
 
+      case 'new_message': {
+        const msg = payload as { sellerSlug?: string };
+        if (msg?.sellerSlug) {
+          const room = `chat:${msg.sellerSlug.toLowerCase().trim()}`;
+          this.io.to(room).emit('new_message', payload);
+        }
+        this.io.emit('new_message', payload);
+        break;
+      }
+
       default:
         this.io.emit(type, payload);
         break;
@@ -176,6 +186,10 @@ export class RealtimeEventBus {
 
   async publishDeliverySlotCapacityUpdated(payload: any) {
     await this.publish(SOCKET_EVENTS.DELIVERY_SLOT_CAPACITY_UPDATED, payload);
+  }
+
+  async publishChatMessage(payload: any) {
+    await this.publish('new_message', payload);
   }
 }
 

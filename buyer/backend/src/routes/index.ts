@@ -4,6 +4,13 @@ import { catalogRouter } from '../modules/catalog/routes/catalog.routes';
 import { productRouter } from '../modules/sellers/routes/seller-product.routes';
 import { categoryRouter } from '../modules/categories/routes/category.routes';
 import { getStorefrontHandler } from '../modules/sellers/controllers/seller.controller';
+import { cartRouter } from '../modules/cart/routes/cart.routes';
+import { deliveryRouter, sellerDeliveryRouter } from '../modules/delivery/routes/delivery.routes';
+import { checkoutRouter } from '../modules/checkout/routes/checkout.routes';
+import { rfqRouter, sellerRfqRouter } from '../modules/rfq/routes/rfq.routes';
+import { ordersRouter, sellerOrdersRouter } from '../modules/orders/routes/orders.routes';
+import { paymentsRouter } from '../modules/payments/routes/payments.routes';
+import { chatRouter, sellerChatRouter } from '../modules/chat/routes/chat.routes';
 import { asyncHandler, sendSuccess, ChatMessage, HttpStatus } from '@haat/shared-backend';
 
 export const buyerApiRouter = Router();
@@ -19,7 +26,20 @@ buyerApiRouter.use('/catalog', catalogRouter);
 buyerApiRouter.get('/stores/:slug', getStorefrontHandler);
 buyerApiRouter.get('/store/:slug', getStorefrontHandler);
 
-// Public Customer-to-Seller Chat Endpoints
+// Part 2 & 3 Modules
+buyerApiRouter.use('/cart', cartRouter);
+buyerApiRouter.use('/delivery', deliveryRouter);
+buyerApiRouter.use('/seller/delivery', sellerDeliveryRouter);
+buyerApiRouter.use('/checkout', checkoutRouter);
+buyerApiRouter.use('/rfq', rfqRouter);
+buyerApiRouter.use('/seller/rfq', sellerRfqRouter);
+buyerApiRouter.use('/orders', ordersRouter);
+buyerApiRouter.use('/seller/orders', sellerOrdersRouter);
+buyerApiRouter.use('/payments', paymentsRouter);
+buyerApiRouter.use('/chat', chatRouter);
+buyerApiRouter.use('/seller/chat', sellerChatRouter);
+
+// Backwards-compatible direct chat message routes
 buyerApiRouter.get(
   '/chat/messages',
   asyncHandler(async (req, res) => {

@@ -1,6 +1,16 @@
+import dns from 'node:dns';
 import mongoose from 'mongoose';
 import { env, isProd } from '../config/env';
 import { logger } from '../lib/logger';
+
+// Configure reliable DNS servers for mongodb+srv SRV resolution on Windows
+if (env.MONGODB_URI && env.MONGODB_URI.startsWith('mongodb+srv:')) {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch {
+    // Ignore if environment restricts custom DNS
+  }
+}
 
 mongoose.set('strictQuery', true);
 // Indexes are created by migration scripts in production, not on every boot.

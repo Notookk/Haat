@@ -7,12 +7,7 @@ export function useCatalogRealtime() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const socket = createSocketClient({
-      url: 'http://localhost:4000',
-      onConnect: () => {
-        // Connected to buyer Socket.IO and catalog:public room
-      },
-    });
+    const socket = createSocketClient();
 
     socket.on(SOCKET_EVENTS.CATALOG_VISIBILITY_CHANGED, (_payload: CatalogVisibilityChangedPayload) => {
       // Invalidate all catalog queries so blocked seller's products are immediately dropped

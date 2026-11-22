@@ -12,7 +12,12 @@ import {
   CheckCircle2,
   Tag,
 } from 'lucide-react';
-import { api, money, showToast } from '@haat/shared-frontend';
+import {
+  api,
+  money,
+  showToast,
+  createSocketClient,
+} from '@haat/shared-frontend';
 import { useSellerAuth } from '../features/auth/SellerAuthProvider';
 
 interface ChatMessage {
@@ -45,14 +50,14 @@ export function SellerChatPage() {
   const [searchFilter, setSearchFilter] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Poll seller messages every 3 seconds for live chat feel
+  // Poll seller messages every 2 seconds for continuous live synchronization
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['seller', 'chat', 'messages'],
     queryFn: async () => {
       const res = await api.get<{ messages: ChatMessage[] }>('/api/v1/seller/chat/messages');
       return res.data.messages || [];
     },
-    refetchInterval: 3000,
+    refetchInterval: 2000,
   });
 
   const messages: ChatMessage[] = data || [];
@@ -65,14 +70,48 @@ export function SellerChatPage() {
     return acc;
   }, {});
 
-  const buyerList = Object.keys(buyerGroups);
+  // Sort buyers so the most recently active customer inquiry is always at the top
+  const buyerList = Object.keys(buyerGroups).sort((a, b) => {
+    const msgsA = buyerGroups[a];
+    const msgsB = buyerGroups[b];
+    const timeA = msgsA[msgsA.length - 1]?.createdAt ? new Date(msgsA[msgsA.length - 1].createdAt!).getTime() : 0;
+    const timeB = msgsB[msgsB.length - 1]?.createdAt ? new Date(msgsB[msgsB.length - 1].createdAt!).getTime() : 0;
+    return timeB - timeA;
+  });
 
-  // Auto-select first buyer if none selected
+  // Auto-select the most recently active buyer if none selected
   useEffect(() => {
     if (!selectedBuyer && buyerList.length > 0) {
-      setSelectedBuyer(buyerList[buyerList.length - 1]);
+      setSelectedBuyer(buyerList[0]);
     }
   }, [buyerList, selectedBuyer]);
+
+  // Real-time bidirectional socket connection for instant chat delivery
+  useEffect(() => {
+    const socket = createSocketClient({
+      url: window.location.origin.includes('localhost') ? 'http://localhost:7100' : undefined,
+    });
+
+    if (seller?.storeSlug) {
+      socket.emit('join_chat', { sellerSlug: seller.storeSlug });
+    }
+
+    socket.on('new_message', (incoming: ChatMessage) => {
+      // Invalidate queries immediately so message pops up with zero latency
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'chat', 'messages'] });
+      // If incoming message is from a buyer, auto-select them so the seller immediately sees their inquiry
+      if (incoming.sender === 'BUYER' && incoming.buyerName) {
+        setSelectedBuyer(incoming.buyerName);
+      }
+    });
+
+    return () => {
+      if (seller?.storeSlug) {
+        socket.emit('leave_chat', { sellerSlug: seller.storeSlug });
+      }
+      socket.disconnect();
+    };
+  }, [seller?.storeSlug, queryClient]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -165,9 +204,9 @@ export function SellerChatPage() {
         </div>
       ) : (
         /* Main Chat Interface */
-        <div className="grid grid-cols-1 lg:grid-cols-12 w-full min-h-[580px] lg:h-[calc(100vh-215px)] rounded-2xl border border-line bg-surface shadow-sm overflow-hidden">
+        <div className="flex flex-col md:flex-row w-full h-[calc(100vh-210px)] min-h-[580px] max-h-[850px] rounded-2xl border border-line bg-surface shadow-sm overflow-hidden">
         {/* Left Sidebar: Conversations List */}
-        <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-line flex flex-col bg-surface-sunken/40">
+        <div className="w-full md:w-72 lg:w-80 border-b md:border-b-0 md:border-r border-line flex flex-col bg-surface-sunken/40 shrink-0">
           {/* Search Bar */}
           <div className="p-3 border-b border-line bg-surface">
             <div className="relative">
@@ -221,7 +260,14 @@ export function SellerChatPage() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <h4 className="text-xs font-bold text-ink-900 truncate">{name}</h4>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <h4 className="text-xs font-bold text-ink-900 truncate">{name}</h4>
+                            {lastMsg.sender === 'BUYER' && (
+                              <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[9px] font-bold shrink-0">
+                                New
+                              </span>
+                            )}
+                          </div>
                           {lastMsg.createdAt ? (
                             <span className="text-[10px] text-ink-400 shrink-0">
                               {new Date(lastMsg.createdAt).toLocaleTimeString([], {
@@ -254,24 +300,38 @@ export function SellerChatPage() {
         </div>
 
         {/* Right Main Area: Active Chat Window */}
-        <div className="lg:col-span-8 flex flex-col bg-surface">
+        <div className="flex-1 flex flex-col bg-surface min-w-0 overflow-hidden">
           {selectedBuyer ? (
             <>
               {/* Active Chat Header */}
               <div className="p-3.5 border-b border-line flex items-center justify-between gap-3 bg-surface">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white font-bold text-xs">
                     {selectedBuyer.charAt(0).toUpperCase()}
                     <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-ink-900 flex items-center gap-2">
-                      <span>{selectedBuyer}</span>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-bold text-ink-900 truncate">{selectedBuyer}</h3>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200 shrink-0">
                         <CheckCircle2 className="h-2.5 w-2.5" /> Active Buyer
                       </span>
-                    </h3>
-                    <p className="text-[11px] text-ink-400">
+                      {buyerList.length > 1 && (
+                        <select
+                          value={selectedBuyer || ''}
+                          onChange={(e) => setSelectedBuyer(e.target.value)}
+                          className="text-[11px] font-bold text-brand-700 bg-brand-50 border border-brand-200 rounded-md px-1.5 py-0.5 cursor-pointer"
+                          title="Switch active buyer inquiry thread"
+                        >
+                          {buyerList.map((bName) => (
+                            <option key={bName} value={bName}>
+                              Thread: {bName} {buyerGroups[bName]?.[buyerGroups[bName].length - 1]?.sender === 'BUYER' ? '★' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-ink-400 mt-0.5">
                       Store: <span className="font-semibold text-ink-700">{seller?.storeName || 'My Store'}</span>
                     </p>
                   </div>

@@ -25,6 +25,10 @@ const listOrdersHandler: RequestHandler = async (req, res) => {
     query.paymentStatus = req.query.paymentStatus;
   }
 
+  if (req.query.sellerId && typeof req.query.sellerId === 'string') {
+    query.sellerId = new mongoose.Types.ObjectId(req.query.sellerId);
+  }
+
   if (req.query.search && typeof req.query.search === 'string') {
     const sanitized = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(sanitized, 'i');
@@ -80,7 +84,7 @@ const listOrdersHandler: RequestHandler = async (req, res) => {
 const getOrderDetailsHandler: RequestHandler = async (req, res) => {
   const order = await Order.findById(req.params.id)
     .populate('buyerId', 'fullName email phoneNumber')
-    .populate('sellerId', 'storeName storeSlug storeAddress')
+    .populate('sellerId', 'storeName storeSlug storeAddress gstin panNumber')
     .lean();
 
   if (!order) {
@@ -90,8 +94,58 @@ const getOrderDetailsHandler: RequestHandler = async (req, res) => {
   return sendSuccess(res, { order });
 };
 
+const getOrderReceiptHandler: RequestHandler = async (req, res) => {
+  const order = await Order.findById(req.params.id)
+    .populate('buyerId', 'fullName email phoneNumber')
+    .populate('sellerId', 'storeName storeSlug storeAddress gstin panNumber')
+    .lean();
+
+  if (!order) {
+    throw AppError.notFound('Order not found.');
+  }
+
+  const seller = (order.sellerId as any) || {};
+  const subtotalPaise = order.items.reduce((acc, it) => acc + (it.subtotalPaise || 0), 0);
+  const gstPaise = Math.round(subtotalPaise * 0.18);
+
+  return sendSuccess(res, {
+    receipt: {
+      invoiceNumber: `INV-${order.orderNumber}`,
+      orderNumber: order.orderNumber,
+      date: order.createdAt,
+      seller: {
+        name: seller.storeName || 'HAAT Verified Merchant',
+        gstin: seller.gstin || '27AAAAA0000A1Z5',
+        pan: seller.panNumber || seller.pan || '',
+        address: seller.storeAddress || '',
+      },
+      buyer: {
+        name: order.shippingAddress?.name || (order.buyerId as any)?.fullName || 'Customer',
+        phone: order.shippingAddress?.phone || (order.buyerId as any)?.phoneNumber || '',
+        address: `${order.shippingAddress?.addressLine1 || ''}, ${order.shippingAddress?.city || ''}, ${order.shippingAddress?.state || ''} - ${order.shippingAddress?.pincode || ''}`,
+      },
+      items: order.items,
+      pricing: {
+        subtotalPaise,
+        gstPaise,
+        deliveryFeePaise: order.deliveryFeePaise || 0,
+        totalAmountPaise: order.totalAmountPaise,
+        currency: order.currency || 'INR',
+      },
+      scheduledDelivery: {
+        date: order.deliveryDate,
+        slot: order.deliverySlot?.label || `${order.deliverySlot?.startTime} – ${order.deliverySlot?.endTime}`,
+      },
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      fulfilmentStatus: order.fulfilmentStatus,
+    },
+  });
+};
+
 adminOrdersRouter.get('/', listOrdersHandler);
 adminOrdersRouter.get('/:id', getOrderDetailsHandler);
+adminOrdersRouter.get('/:id/receipt', getOrderReceiptHandler);
 
 // Strictly reject any order modifications/cancellations
 adminOrdersRouter.post('*', rejectAdminWrites);

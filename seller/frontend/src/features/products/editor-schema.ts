@@ -43,13 +43,16 @@ export function generateRandomSku(prefixSeed = ''): string {
   return generateSkuFromTitle(prefixSeed) || `HAAT-${Math.floor(100000 + Math.random() * 900000)}`;
 }
 
+const MAX_RUPEES = 100_000_000; // ₹10 crore ceiling to protect financial calculations
+
 const rupeesField = (label: string, allowZero: boolean) =>
   z
     .string()
     .trim()
     .min(1, `${label} is required`)
     .refine((value) => RUPEES.test(value), `Enter ${label.toLowerCase()} in rupees (e.g. 249.50)`)
-    .refine((value) => allowZero || Number(value) > 0, `${label} must be greater than zero`);
+    .refine((value) => allowZero || Number(value) > 0, `${label} must be greater than zero`)
+    .refine((value) => Number(value) <= MAX_RUPEES, `${label} cannot exceed ₹10,00,00,000`);
 
 const wholeField = (label: string, minimum: number, message: string) =>
   z

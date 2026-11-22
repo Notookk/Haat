@@ -47,7 +47,7 @@ export const adminAuthService = {
     }
 
     if (admin.role !== 'ADMIN' && admin.role !== 'SUPER_ADMIN') {
-      throw new AppError(ERROR_CODES.FORBIDDEN, 'Access restricted to platform administrators.', 403);
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Access restricted to platform administrators.', 401);
     }
 
     const isValid = await verifyPassword(input.password, admin.passwordHash);
@@ -106,7 +106,7 @@ export const adminAuthService = {
     }
 
     if (admin.role !== 'ADMIN' && admin.role !== 'SUPER_ADMIN') {
-      throw new AppError(ERROR_CODES.FORBIDDEN, 'Access restricted to platform administrators.', 403);
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Access restricted to platform administrators.', 401);
     }
 
     const accessToken = signAccessToken({ userId: String(admin._id), role: admin.role as UserRole });

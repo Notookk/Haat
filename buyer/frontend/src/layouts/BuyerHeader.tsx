@@ -404,11 +404,19 @@ export function BuyerHeader() {
                         <p className="text-[11px] text-[#5c6c75] truncate">{user.phoneNumber || user.email}</p>
                       </div>
                       <Link
-                        to="/catalogue"
+                        to="/orders"
                         onClick={() => setUserMenuOpen(false)}
                         className="group flex w-full items-center justify-between rounded-xl px-3.5 py-2 text-sm font-medium text-[#21313c] hover:bg-[#f0f4ff] hover:text-[#16135c] transition-colors"
                       >
                         <span>My Orders</span>
+                        <ChevronRight size={14} className="text-gray-300 group-hover:text-[#16135c] transition-colors" />
+                      </Link>
+                      <Link
+                        to="/rfq"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="group flex w-full items-center justify-between rounded-xl px-3.5 py-2 text-sm font-medium text-[#21313c] hover:bg-[#f0f4ff] hover:text-[#16135c] transition-colors"
+                      >
+                        <span>Quotations & RFQs</span>
                         <ChevronRight size={14} className="text-gray-300 group-hover:text-[#16135c] transition-colors" />
                       </Link>
                       <button

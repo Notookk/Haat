@@ -108,24 +108,25 @@ export function SellerProductEditorPage() {
 
   // Real-time calculation of Discounted Price from Total Price & Discount %
   const totalPriceNum = parseFloat(values.totalPriceRupees) || 0;
+  const isReasonablePrice = totalPriceNum > 0 && totalPriceNum <= 100_000_000;
   const discountPercentNum = Math.min(99, Math.max(0, parseInt(values.discountPercent, 10) || 0));
 
   const calculatedDiscountedPrice =
-    totalPriceNum > 0
+    isReasonablePrice
       ? (totalPriceNum - (totalPriceNum * discountPercentNum) / 100).toFixed(2)
       : '0.00';
 
   const savingsAmount =
-    totalPriceNum > 0 && discountPercentNum > 0
+    isReasonablePrice && discountPercentNum > 0
       ? ((totalPriceNum * discountPercentNum) / 100).toFixed(2)
       : null;
 
   useEffect(() => {
-    if (totalPriceNum > 0) {
+    if (isReasonablePrice) {
       const discounted = (totalPriceNum - (totalPriceNum * discountPercentNum) / 100).toFixed(2);
       setValue('retailPriceRupees', discounted, { shouldValidate: false });
     }
-  }, [totalPriceNum, discountPercentNum, setValue]);
+  }, [totalPriceNum, isReasonablePrice, discountPercentNum, setValue]);
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();

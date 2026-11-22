@@ -7,6 +7,7 @@ export * from './components/ui/States';
 export * from './components/ui/TextField';
 export * from './components/ui/CustomSelect';
 export * from './components/ProductMedia';
+export * from './components/TaxInvoiceModal';
 export * from './lib/api-client';
 export * from './lib/cn';
 export * from './lib/format';

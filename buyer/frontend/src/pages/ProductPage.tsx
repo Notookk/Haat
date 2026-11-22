@@ -19,6 +19,7 @@ import {
   Layers,
   Sparkles,
   Trash2,
+  FileText,
 } from 'lucide-react';
 import {
   Badge,
@@ -33,6 +34,7 @@ import {
 } from '@haat/shared-frontend';
 import { usePublicProduct } from '../features/catalog/api';
 import { useAuth } from '../features/auth/AuthProvider';
+import { RfqModal } from '../features/rfq/RfqModal';
 import {
   addProductToCart,
   removeCartItem,
@@ -52,10 +54,29 @@ export function ProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'wholesale'>('desc');
   const [skuCopied, setSkuCopied] = useState(false);
+  const [isRfqOpen, setIsRfqOpen] = useState(false);
 
   // Interactive mouse zoom state
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
+
+  // Cart membership state — must be declared before any early return to satisfy Rules of Hooks
+  const itemId = product.data?.id;
+  const [isInCart, setIsInCart] = useState(() => (itemId ? isProductInCart(itemId) : false));
+
+  useEffect(() => {
+    if (!itemId) return;
+    setIsInCart(isProductInCart(itemId));
+    const handleCartChange = () => {
+      setIsInCart(isProductInCart(itemId));
+    };
+    window.addEventListener('haat_cart_updated', handleCartChange);
+    window.addEventListener('storage', handleCartChange);
+    return () => {
+      window.removeEventListener('haat_cart_updated', handleCartChange);
+      window.removeEventListener('storage', handleCartChange);
+    };
+  }, [itemId]);
 
   // Handle cursor movement inside main image container
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -110,20 +131,6 @@ export function ProductPage() {
 
   const item = product.data;
   if (!item) return null;
-
-  const [isInCart, setIsInCart] = useState(() => isProductInCart(item.id));
-
-  useEffect(() => {
-    const handleCartChange = () => {
-      setIsInCart(isProductInCart(item.id));
-    };
-    window.addEventListener('haat_cart_updated', handleCartChange);
-    window.addEventListener('storage', handleCartChange);
-    return () => {
-      window.removeEventListener('haat_cart_updated', handleCartChange);
-      window.removeEventListener('storage', handleCartChange);
-    };
-  }, [item.id]);
 
   const images = item.images && item.images.length > 0 ? item.images : [];
   const current = images[Math.min(activeImage, Math.max(0, images.length - 1))] ?? null;
@@ -557,6 +564,23 @@ export function ProductPage() {
                     : 'Sign in to chat with seller'}
                 </span>
               </button>
+
+              {/* Request Custom Quotation (RFQ) Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    navigate('/login');
+                    return;
+                  }
+                  setIsRfqOpen(true);
+                }}
+                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0AAD0A] bg-emerald-50/50 text-[#0AAD0A] font-bold text-xs shadow-2xs hover:bg-[#0AAD0A] hover:text-white transition-colors cursor-pointer"
+                title="Request wholesale quotation or bulk pricing from merchant"
+              >
+                <FileText size={16} />
+                <span>Request Custom Quote (RFQ)</span>
+              </button>
             </div>
 
             {/* Wholesale Pricing Tiers Banner (if configured) */}
@@ -718,6 +742,8 @@ export function ProductPage() {
           </div>
         </div>
       </div>
+
+      <RfqModal isOpen={isRfqOpen} onClose={() => setIsRfqOpen(false)} product={item} />
     </div>
   );
 }

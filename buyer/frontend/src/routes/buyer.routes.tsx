@@ -9,6 +9,10 @@ import { StorefrontPage } from '../pages/StorefrontPage';
 import { ChatPage } from '../pages/ChatPage';
 import { WishlistPage } from '../pages/WishlistPage';
 import { CartPage } from '../pages/CartPage';
+import { CheckoutPage } from '../pages/CheckoutPage';
+import { OrdersPage } from '../pages/OrdersPage';
+import { OrderDetailPage } from '../pages/OrderDetailPage';
+import { RfqPage } from '../pages/RfqPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const buyerRoutes: RouteObject[] = [
@@ -23,6 +27,10 @@ export const buyerRoutes: RouteObject[] = [
       { path: 'chat', element: <ChatPage /> },
       { path: 'wishlist', element: <WishlistPage /> },
       { path: 'cart', element: <CartPage /> },
+      { path: 'checkout', element: <CheckoutPage /> },
+      { path: 'orders', element: <OrdersPage /> },
+      { path: 'orders/:id', element: <OrderDetailPage /> },
+      { path: 'rfq', element: <RfqPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: '*', element: <NotFoundPage /> },

@@ -11,6 +11,7 @@ import {
   HttpStatus,
   deleteCloudinaryImages,
   extractCloudinaryPublicId,
+  realtimeEventBus,
 } from '@haat/shared-backend';
 import { requireActiveSeller } from '../middleware/requireActiveSeller';
 import { sellerAuthRouter } from '../modules/auth/routes/auth.routes';
@@ -209,6 +210,8 @@ sellerApiRouter.post(
       productTitle: productTitle ? String(productTitle) : null,
       isRead: true,
     });
+    // Broadcast instantly to connected clients on both seller and buyer backends
+    void realtimeEventBus.publishChatMessage(message.toObject());
     return sendSuccess(res, { message }, HttpStatus.CREATED);
   }),
 );

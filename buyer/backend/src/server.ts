@@ -8,6 +8,7 @@ import {
   realtimeEventBus,
 } from '@haat/shared-backend';
 import { createBuyerApp } from './app';
+import { registerChatSocketHandlers } from './modules/chat/socket/chat.socket';
 
 async function bootstrap(): Promise<void> {
   await connectDatabase();
@@ -20,6 +21,9 @@ async function bootstrap(): Promise<void> {
   // Initialize Socket.IO server & platform event bus
   const io = createSocketServer(server, { serviceName: 'buyer-backend' });
   realtimeEventBus.init({ io, currentPort: port });
+
+  // Register real-time chat socket listeners
+  registerChatSocketHandlers(io);
 
   server.listen(port, () => {
     logger.info('buyer api listening', {

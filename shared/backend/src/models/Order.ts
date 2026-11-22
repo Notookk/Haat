@@ -4,6 +4,7 @@ import { ORDER_PAYMENT_STATUSES, FULFILMENT_STATUSES } from '@haat/shared-contra
 const orderItemSchema = new Schema(
   {
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    variantId: { type: Schema.Types.ObjectId, default: null },
     sku: { type: String, required: true },
     title: { type: String, required: true },
     unitPricePaise: { type: Number, required: true, min: 0 },
@@ -14,13 +15,26 @@ const orderItemSchema = new Schema(
   { _id: false, versionKey: false },
 );
 
+const statusHistorySchema = new Schema(
+  {
+    from: { type: String, required: true },
+    to: { type: String, required: true },
+    changedByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    remarks: { type: String, default: null },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const orderSchema = new Schema(
   {
     orderNumber: { type: String, required: true, unique: true, index: true },
+    idempotencyKey: { type: String, unique: true, sparse: true, index: true },
     buyerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     sellerId: { type: Schema.Types.ObjectId, ref: 'SellerProfile', required: true, index: true },
     items: { type: [orderItemSchema], default: [] },
     totalAmountPaise: { type: Number, required: true, min: 0 },
+    deliveryFeePaise: { type: Number, default: 0, min: 0 },
     currency: { type: String, default: 'INR' },
     paymentStatus: {
       type: String,
@@ -34,6 +48,7 @@ const orderSchema = new Schema(
       default: 'PENDING_CONFIRMATION',
       index: true,
     },
+    statusHistory: { type: [statusHistorySchema], default: [] },
     paymentMethod: { type: String, default: 'ONLINE' },
     shippingAddress: {
       name: { type: String },

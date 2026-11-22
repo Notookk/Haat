@@ -6,6 +6,10 @@ import { AdminDashboardPage } from '../pages/AdminDashboardPage';
 import { AdminBuyersPage } from '../pages/AdminBuyersPage';
 import { AdminSellersPage } from '../pages/AdminSellersPage';
 import { AdminCategoriesPage } from '../pages/AdminCategoriesPage';
+import { AdminCatalogPage } from '../pages/AdminCatalogPage';
+import { AdminOrdersPage } from '../pages/AdminOrdersPage';
+import { AdminTransactionsPage } from '../pages/AdminTransactionsPage';
+import { AdminAuditLogsPage } from '../pages/AdminAuditLogsPage';
 import { AdminNotFoundPage } from '../pages/AdminNotFoundPage';
 
 export const adminRouter = createBrowserRouter([
@@ -37,8 +41,24 @@ export const adminRouter = createBrowserRouter([
             element: <AdminSellersPage />,
           },
           {
+            path: 'catalog',
+            element: <AdminCatalogPage />,
+          },
+          {
             path: 'categories',
             element: <AdminCategoriesPage />,
+          },
+          {
+            path: 'orders',
+            element: <AdminOrdersPage />,
+          },
+          {
+            path: 'transactions',
+            element: <AdminTransactionsPage />,
+          },
+          {
+            path: 'audit-logs',
+            element: <AdminAuditLogsPage />,
           },
           {
             path: '*',

@@ -208,4 +208,59 @@ export const sellerOrderService = {
 
     return this.getOrder(sellerId, orderId);
   },
+
+  async getOrderReceipt(sellerId: string, orderId: string) {
+    const order = await Order.findOne({ _id: orderId, sellerId })
+      .populate('buyerId', 'fullName email phoneNumber')
+      .populate('sellerId', 'storeName gstin pan panNumber storeAddress address')
+      .lean();
+
+    if (!order) {
+      throw AppError.notFound(`Order ${orderId} not found.`);
+    }
+
+    const o = order as any;
+    const seller = o.sellerId || {};
+    const subtotalPaise = (o.items || []).reduce((acc: number, it: any) => acc + (it.subtotalPaise || 0), 0);
+    const gstPaise = Math.round(subtotalPaise * 0.18);
+
+    return {
+      invoiceNumber: `INV-${o.orderNumber}`,
+      orderNumber: o.orderNumber,
+      date: o.createdAt,
+      seller: {
+        name: seller.storeName || 'Verified Merchant',
+        gstin: seller.gstin || '19AAAAANNNNA1Z5',
+        pan: seller.panNumber || seller.pan || '',
+        address: seller.storeAddress || seller.address || '',
+      },
+      buyer: {
+        name: o.shippingAddress?.name || o.buyerId?.fullName || 'Customer',
+        phone: o.shippingAddress?.phone || o.buyerId?.phoneNumber || '',
+        address: `${o.shippingAddress?.addressLine1 || ''}, ${o.shippingAddress?.city || ''}, ${o.shippingAddress?.state || ''} ${o.shippingAddress?.pincode || ''}`.trim(),
+      },
+      items: (o.items || []).map((it: any) => ({
+        title: it.title,
+        sku: it.sku,
+        quantity: it.quantity,
+        unitPricePaise: it.unitPricePaise,
+        subtotalPaise: it.subtotalPaise,
+        isWholesale: it.isWholesale || false,
+      })),
+      pricing: {
+        subtotalPaise,
+        gstPaise,
+        deliveryFeePaise: o.deliveryFeePaise || 0,
+        totalAmountPaise: o.totalAmountPaise,
+        currency: o.currency || 'INR',
+      },
+      scheduledDelivery: {
+        date: o.deliveryDate || null,
+        slot: o.deliverySlot?.label || (o.deliverySlot?.startTime ? `${o.deliverySlot.startTime} – ${o.deliverySlot.endTime}` : null),
+      },
+      paymentStatus: o.paymentStatus,
+      paymentMethod: o.paymentMethod,
+      fulfilmentStatus: o.fulfilmentStatus,
+    };
+  },
 };

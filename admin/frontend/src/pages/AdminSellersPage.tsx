@@ -35,6 +35,7 @@ import {
   createSocketClient,
   TrendAreaChart,
   DonutDistributionChart,
+  TaxInvoiceModal,
 } from '@haat/shared-frontend';
 
 interface SellerItem {
@@ -179,6 +180,30 @@ export function AdminSellersPage() {
 
   const [unblockingSeller, setUnblockingSeller] = useState<SellerItem | null>(null);
   const [unblockReason, setUnblockReason] = useState('');
+
+  // Seller Orders & On-the-fly Invoices modal
+  const [viewOrdersSeller, setViewOrdersSeller] = useState<SellerItem | null>(null);
+  const [selectedInvoiceOrderId, setSelectedInvoiceOrderId] = useState<string | null>(null);
+
+  const { data: sellerOrdersData, isLoading: isSellerOrdersLoading } = useQuery({
+    queryKey: ['admin-seller-orders', viewOrdersSeller?._id],
+    queryFn: async () => {
+      if (!viewOrdersSeller) return null;
+      const res = await api.get<{ orders: any[] }>(`/admin/orders?sellerId=${viewOrdersSeller._id}`);
+      return res.data;
+    },
+    enabled: !!viewOrdersSeller,
+  });
+
+  const { data: sellerInvoiceData, isLoading: isSellerInvoiceLoading } = useQuery({
+    queryKey: ['admin-seller-invoice', selectedInvoiceOrderId],
+    queryFn: async () => {
+      if (!selectedInvoiceOrderId) return null;
+      const res = await api.get<{ receipt: any }>(`/admin/orders/${selectedInvoiceOrderId}/receipt`);
+      return res.data.receipt;
+    },
+    enabled: !!selectedInvoiceOrderId,
+  });
 
   // 1. Fetch Dynamic Statistics from Backend
   const { data: statsData, isLoading: isStatsLoading } = useQuery<SellerStats>({
@@ -572,8 +597,17 @@ export function AdminSellersPage() {
                     </td>
 
                     <td className="py-4 px-3 text-center">
-                      <span className="font-semibold text-ink-800">{seller.totalOrders ?? 0}</span>
-                      <span className="text-micro text-ink-400 block">orders</span>
+                      <button
+                        type="button"
+                        onClick={() => setViewOrdersSeller(seller)}
+                        className="group inline-flex flex-col items-center justify-center p-1.5 rounded-lg hover:bg-surface-sunken transition-all cursor-pointer"
+                        title={`View orders and invoices for ${seller.storeName}`}
+                      >
+                        <span className="font-bold text-ink-900 group-hover:text-brand-600 underline decoration-dotted">
+                          {seller.totalOrders ?? 0}
+                        </span>
+                        <span className="text-micro text-ink-400 group-hover:text-brand-600">orders</span>
+                      </button>
                     </td>
 
                     <td className="py-4 px-3 text-right">
@@ -874,6 +908,13 @@ export function AdminSellersPage() {
                   <div className="text-center border-r border-line px-2">
                     <p className="text-micro font-bold uppercase text-ink-400">Total Orders</p>
                     <p className="mt-1 text-headline font-black text-ink-900">{inspectingSeller.totalOrders ?? 0}</p>
+                    <button
+                      type="button"
+                      onClick={() => setViewOrdersSeller(inspectingSeller)}
+                      className="mt-1 inline-block text-micro text-brand-600 hover:text-brand-700 font-semibold underline cursor-pointer"
+                    >
+                      View Invoices
+                    </button>
                   </div>
                   <div className="text-center pl-2">
                     <p className="text-micro font-bold uppercase text-ink-400">Revenue</p>
@@ -1261,6 +1302,90 @@ export function AdminSellersPage() {
           </div>,
           document.body,
         )}
+
+      {/* Seller Orders & On-The-Fly Invoices Modal */}
+      {viewOrdersSeller &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-canvas p-6 shadow-2xl border border-line">
+              <div className="flex items-center justify-between border-b border-line pb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-ink-900">
+                    Orders & Invoices: {viewOrdersSeller.storeName}
+                  </h3>
+                  <p className="text-xs text-ink-500">
+                    On-the-fly invoice generation for all orders fulfilled by this merchant
+                  </p>
+                </div>
+                <button
+                  onClick={() => setViewOrdersSeller(null)}
+                  className="rounded-lg p-1 text-ink-400 hover:bg-canvas-muted hover:text-ink-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {isSellerOrdersLoading ? (
+                <div className="space-y-3 py-8">
+                  <SkeletonBlock className="h-10 w-full" />
+                  <SkeletonBlock className="h-14 w-full" />
+                  <SkeletonBlock className="h-14 w-full" />
+                </div>
+              ) : !sellerOrdersData?.orders || sellerOrdersData.orders.length === 0 ? (
+                <div className="py-12 text-center text-ink-500 space-y-2">
+                  <FileText className="mx-auto h-10 w-10 text-ink-300" />
+                  <p className="font-semibold text-sm">No orders recorded yet</p>
+                  <p className="text-xs text-ink-400">
+                    This seller has not yet fulfilled any orders on the marketplace.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line">
+                  {sellerOrdersData.orders.map((o: any) => (
+                    <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-canvas-subtle">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-sm text-ink-900">{o.orderNumber}</span>
+                          <span className="text-xs text-ink-400">· {formatDate(o.createdAt)}</span>
+                        </div>
+                        <p className="text-xs text-ink-600 mt-0.5">
+                          Buyer: <strong className="text-ink-900">{o.buyer?.fullName || 'Customer'}</strong> ({o.buyer?.phoneNumber || '–'})
+                        </p>
+                        <p className="text-xs text-ink-500">
+                          {o.itemsCount} item{o.itemsCount !== 1 ? 's' : ''} · {money(o.totalAmountPaise)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-micro font-bold uppercase rounded-md bg-emerald-50 text-emerald-700 px-2 py-0.5">
+                          {o.paymentStatus}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedInvoiceOrderId(o.id)}
+                          className="inline-flex items-center gap-1.5 text-xs text-[#0AAD0A] border-emerald-200 hover:bg-emerald-50 font-bold"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          View Invoice
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Tax Invoice Modal for Seller Orders */}
+      <TaxInvoiceModal
+        isOpen={!!selectedInvoiceOrderId}
+        onClose={() => setSelectedInvoiceOrderId(null)}
+        invoiceData={sellerInvoiceData || null}
+        isLoading={isSellerInvoiceLoading}
+      />
     </div>
   );
 }

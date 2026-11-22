@@ -68,14 +68,14 @@ export function refreshCookieClearOptions(): { httpOnly: boolean; sameSite: 'lax
   return { httpOnly: true, sameSite: 'lax', secure: isProd, path: '/' };
 }
 
-/** Reads the refresh token from the cookie, falling back to a body value for native clients. */
+/** Reads the refresh token, preferring body/client-explicit token over cross-port localhost cookie collision. */
 export function readRefreshToken(cookies: Record<string, unknown>, body: unknown): string | null {
-  const fromCookie = cookies?.[env.REFRESH_COOKIE_NAME];
-  if (typeof fromCookie === 'string' && fromCookie.length > 0) return fromCookie;
   if (typeof body === 'object' && body !== null && 'refreshToken' in body) {
     const value = (body as { refreshToken?: unknown }).refreshToken;
     if (typeof value === 'string' && value.length > 0) return value;
   }
+  const fromCookie = cookies?.[env.REFRESH_COOKIE_NAME];
+  if (typeof fromCookie === 'string' && fromCookie.length > 0) return fromCookie;
   return null;
 }
 

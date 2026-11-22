@@ -150,16 +150,7 @@ export function CartPage() {
   const totalPaise = subtotalPaise + deliveryPaise;
 
   const handleCheckout = () => {
-    setIsCheckingOut(true);
-    setTimeout(() => {
-      setIsCheckingOut(false);
-      showToast.success(
-        'Order Placed Successfully!',
-        `Your scheduled slot: ${selectedSlot.displayLabel}. Thank you for shopping on HAAT!`,
-      );
-      clearCart();
-      navigate('/catalogue');
-    }, 1200);
+    navigate('/checkout');
   };
 
   return (

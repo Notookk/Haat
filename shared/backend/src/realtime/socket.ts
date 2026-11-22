@@ -1,4 +1,5 @@
 import { Server, type Socket } from 'socket.io';
+export { Server, type Socket } from 'socket.io';
 import type { Server as HttpServer } from 'node:http';
 import { SOCKET_ROOMS } from '@haat/shared-contracts';
 import { verifyAccessToken } from '../utils/tokens';

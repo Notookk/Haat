@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ShieldCheck,
   MessageSquare,
+  FileText,
 } from 'lucide-react';
 import { useSellerAuth } from '../features/auth/SellerAuthProvider';
 import { Badge, showToast } from '@haat/shared-frontend';
@@ -24,6 +25,7 @@ const navItems = [
   { to: '/products', label: 'Products', icon: Package, end: false },
   { to: '/categories', label: 'Categories', icon: FolderTree, end: false },
   { to: '/orders', label: 'Orders', icon: ShoppingBag, end: false },
+  { to: '/rfq', label: 'RFQ & Quotes', icon: FileText, end: false },
   { to: '/delivery-slots', label: 'Delivery Slots', icon: Clock, end: false },
   { to: '/chat', label: 'Chat', icon: MessageSquare, end: false },
   { to: '/revenue', label: 'Revenue', icon: TrendingUp, end: false },
