@@ -30,6 +30,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       const response = await api.post<{ user: AdminUser; accessToken: string; refreshToken?: string }>(
         '/api/v1/admin/auth/refresh',
         storedToken ? { refreshToken: storedToken } : {},
+        true,
       );
       if (response.data && response.data.accessToken) {
         setAccessToken(response.data.accessToken);
@@ -63,6 +64,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         const response = await api.post<{ user: AdminUser; accessToken: string; refreshToken?: string }>(
           '/api/v1/admin/auth/refresh',
           storedToken ? { refreshToken: storedToken } : {},
+          true,
         );
         if (mounted && response.data && response.data.accessToken) {
           setAccessToken(response.data.accessToken);
@@ -96,6 +98,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     const response = await api.post<{ user: AdminUser; accessToken: string; refreshToken?: string }>(
       '/api/v1/admin/auth/login',
       credentials,
+      true,
     );
     setAccessToken(response.data.accessToken);
     setUser(response.data.user);
@@ -108,7 +111,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('haat_admin_refresh_token') : null;
-      await api.post('/api/v1/admin/auth/logout', storedToken ? { refreshToken: storedToken } : {});
+      await api.post('/api/v1/admin/auth/logout', storedToken ? { refreshToken: storedToken } : {}, true);
     } finally {
       setAccessToken(null);
       setUser(null);

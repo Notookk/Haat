@@ -149,7 +149,14 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> {
   let response = await send(path, options);
 
-  if (response.status === 401 && !options.skipRefresh) {
+  const isAuthEndpoint =
+    Boolean(options.skipRefresh) ||
+    path.includes('/auth/login') ||
+    path.includes('/auth/refresh') ||
+    path.includes('/auth/register') ||
+    path.includes('/auth/logout');
+
+  if (response.status === 401 && !isAuthEndpoint) {
     const refreshed = await refreshAccessToken();
     if (refreshed) response = await send(path, options);
   }
