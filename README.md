@@ -55,44 +55,6 @@ and the commerce core — is implemented. Parts 2 and 3 are scoped in the PRD an
 | **2 — Buyer Commerce & Scheduled Fulfilment**  | Search facets, product detail, storefront, cart grouped by seller, checkout with atomic slot reservation, seller slot configuration, RFQ and quotation lifecycle                                                                                                                                                       | Not started                                                                                                                                                        |
 | **3 — Real-Time, Payments, Admin & Hardening** | Socket.IO real-time communication, order state machine, Razorpay and webhook settlement, invoices, super-admin consoles, audit trail, security and performance work                                                                                                                                                    | Not started                                                                                                                                                        |
 
-## Architecture
-
-```mermaid
-flowchart TD
-  subgraph BuyerApp ["Buyer Application"]
-    BF["@haat/buyer-frontend<br/>React 18 · Vite · Port 5173"]
-    BB["@haat/buyer-backend<br/>Express 4 · Mongoose 8 · Port 5000"]
-    BF -->|"REST · /api/v1"| BB
-  end
-
-  subgraph AdminApp ["Admin Application"]
-    AF["@haat/admin-frontend<br/>React 18 · Vite · Port 5174"]
-    AB["@haat/admin-backend<br/>Express 4 · Mongoose 8 · Port 6000"]
-    AF -->|"REST · /api/v1/admin"| AB
-  end
-
-  subgraph Shared ["Shared Foundation"]
-    SC["@haat/shared-contracts<br/>Zod schemas · Types · Money"]
-    SB["@haat/shared-backend<br/>Mongoose · Auth · Logger · Middleware"]
-    SF["@haat/shared-frontend<br/>UI components · API Client · Formatters"]
-  end
-
-  SC -.->|"contracts"| BB & AB & BF & AF
-  SB -.->|"infrastructure"| BB & AB
-  SF -.->|"design system"| BF & AF
-
-  BB --> M[("MongoDB 7+")]
-  AB --> M
-```
-
-### Core Architectural Decisions
-
-- **Two Independent Applications**: Buyer and Admin have separate frontends, backends, entry points, layouts, and routing.
-- **Money is an integer count of paise**: The database never stores rupees, avoiding floating-point drift. Forms convert once at the boundary with `rupeesToPaise`.
-- **Contracts are shared, not duplicated**: Schemas for validation, DTOs, and error codes live in `@haat/shared-contracts` and are reused by both server and browser.
-- **The product is one document**: Variants and tiers are embedded in the aggregate for atomic updates.
-- **Seller role resides in Buyer**: For the current stage, Seller functionality is logically grouped within the Buyer application and will be split into an independent top-level module in a future phase.
-
 ## Tech Stack
 
 | Layer           | Choice                                            | Notes                                                          |
