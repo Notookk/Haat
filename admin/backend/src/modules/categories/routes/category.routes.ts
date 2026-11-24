@@ -1,18 +1,27 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '@haat/shared-backend';
-import { getCategoryHandler, listCategoriesHandler } from '../controllers/category.controller';
-import { rejectAdminWrites } from '../../../middleware/rejectAdminWrites';
+import { requireAuth, requireRole, validate } from '@haat/shared-backend';
+import {
+  createCategoryHandler,
+  deleteCategoryHandler,
+  getCategoryHandler,
+  listCategoriesHandler,
+  updateCategoryHandler,
+} from '../controllers/category.controller';
+import {
+  adminCategoryCreateSchema,
+  adminCategoryUpdateSchema,
+} from '../validators/category.validator';
 
 export const adminCategoryRouter = Router();
 
 adminCategoryRouter.use(requireAuth, requireRole('ADMIN', 'SUPER_ADMIN'));
 
-// Read-only taxonomy inspection
+// Taxonomy management endpoints
 adminCategoryRouter.get('/', listCategoriesHandler);
 adminCategoryRouter.get('/:id', getCategoryHandler);
+adminCategoryRouter.post('/', validate(adminCategoryCreateSchema, 'body'), createCategoryHandler);
+adminCategoryRouter.put('/:id', validate(adminCategoryUpdateSchema, 'body'), updateCategoryHandler);
+adminCategoryRouter.patch('/:id', validate(adminCategoryUpdateSchema, 'body'), updateCategoryHandler);
+adminCategoryRouter.delete('/:id', deleteCategoryHandler);
 
-// Strictly reject any category creation, updates, or deletions
-adminCategoryRouter.post('*', rejectAdminWrites);
-adminCategoryRouter.put('*', rejectAdminWrites);
-adminCategoryRouter.patch('*', rejectAdminWrites);
-adminCategoryRouter.delete('*', rejectAdminWrites);
+

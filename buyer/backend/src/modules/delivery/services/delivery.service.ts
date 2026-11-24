@@ -32,14 +32,41 @@ export interface FormattedSlotResponse {
   startTime: string;
   endTime: string;
   label: string;
+  period?: string;
   maxCapacity: number;
   bookedCount: number;
   remainingCapacity: number;
   status: 'AVAILABLE' | 'FILLING_FAST' | 'SOLD_OUT';
+  badge?: string;
+  badgeColor?: string;
 }
 
 export async function getAvailableSlots(sellerId: string, dateStr: string) {
-  const sellerObjectId = new Types.ObjectId(sellerId);
+  let sellerObjectId: Types.ObjectId | null = null;
+  if (sellerId && Types.ObjectId.isValid(sellerId)) {
+    sellerObjectId = new Types.ObjectId(sellerId);
+  } else if (sellerId) {
+    const profile = await SellerProfile.findOne({
+      $or: [{ storeSlug: sellerId }, { businessName: sellerId }],
+    }).lean();
+    if (profile) {
+      sellerObjectId = profile._id as Types.ObjectId;
+    }
+  }
+
+  // Fallback to active seller if sellerId was not provided or not resolved
+  if (!sellerObjectId) {
+    const activeSeller =
+      (await SellerProfile.findOne({ status: 'ACTIVE' }).lean()) ||
+      (await SellerProfile.findOne({}).lean());
+    if (activeSeller) {
+      sellerObjectId = activeSeller._id as Types.ObjectId;
+    }
+  }
+
+  if (!sellerObjectId) {
+    return { slots: [], isBlackout: false, reason: null };
+  }
 
   // Check blackout
   const blackout = await DeliveryBlackout.findOne({
@@ -62,54 +89,28 @@ export async function getAvailableSlots(sellerId: string, dateStr: string) {
   }
   const dayOfWeek = DAY_NAMES[dateObj.getUTCDay()];
 
-  // Query active slot templates for seller
+  // Query active slot templates from deliveryslots collection for seller
   const slotTemplates = await DeliverySlot.find({
     sellerId: sellerObjectId,
-    dayOfWeek,
     isActive: true,
+    $or: [
+      { date: dateStr },
+      { dayOfWeek },
+      { date: null, dayOfWeek: null },
+      { date: null, dayOfWeek: 'ALL' },
+      { date: { $exists: false } },
+    ],
   })
     .sort({ startTime: 1 })
     .lean();
 
-  // If no specific slots configured, provide standard default slots
-  const effectiveSlots =
-    slotTemplates.length > 0
-      ? slotTemplates
-      : [
-          {
-            _id: new Types.ObjectId('000000000000000000000001'),
-            sellerId: sellerObjectId,
-            dayOfWeek,
-            startTime: '09:00',
-            endTime: '12:00',
-            maxCapacity: 20,
-            leadTimeHours: 2,
-            isActive: true,
-          },
-          {
-            _id: new Types.ObjectId('000000000000000000000002'),
-            sellerId: sellerObjectId,
-            dayOfWeek,
-            startTime: '14:00',
-            endTime: '17:00',
-            maxCapacity: 20,
-            leadTimeHours: 2,
-            isActive: true,
-          },
-          {
-            _id: new Types.ObjectId('000000000000000000000003'),
-            sellerId: sellerObjectId,
-            dayOfWeek,
-            startTime: '18:00',
-            endTime: '21:00',
-            maxCapacity: 20,
-            leadTimeHours: 2,
-            isActive: true,
-          },
-        ];
+  // If no specific slots configured, return empty array (no dummy slots)
+  if (!slotTemplates || slotTemplates.length === 0) {
+    return { slots: [], isBlackout: false, reason: null };
+  }
 
   // Fetch counters for this date
-  const slotIds = effectiveSlots.map((s) => s._id);
+  const slotIds = slotTemplates.map((s) => s._id);
   const counters = await SlotCounter.find({
     sellerId: sellerObjectId,
     slotId: { $in: slotIds },
@@ -118,7 +119,21 @@ export async function getAvailableSlots(sellerId: string, dateStr: string) {
 
   const counterMap = new Map(counters.map((c) => [String(c.slotId), c]));
 
-  const formattedSlots: FormattedSlotResponse[] = effectiveSlots.map((slot: any) => {
+  const formatTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  const getWindowPeriod = (t: string) => {
+    const [h] = t.split(':').map(Number);
+    if (h < 12) return 'Morning Window';
+    if (h < 17) return 'Afternoon Window';
+    return 'Evening Window';
+  };
+
+  const formattedSlots: FormattedSlotResponse[] = slotTemplates.map((slot: any, index: number) => {
     const counter = counterMap.get(String(slot._id));
     const maxCapacity = slot.maxCapacity ?? slot.capacity ?? 20;
     const booked = counter?.booked ?? 0;
@@ -131,12 +146,14 @@ export async function getAvailableSlots(sellerId: string, dateStr: string) {
       status = 'FILLING_FAST';
     }
 
-    const formatTime = (t: string) => {
-      const [h, m] = t.split(':').map(Number);
-      const period = h >= 12 ? 'PM' : 'AM';
-      const hour = h % 12 || 12;
-      return `${hour}${m > 0 ? `:${m}` : ''} ${period}`;
-    };
+    const badge =
+      index === 0 ? 'Fastest Delivery' : index === 1 ? 'Recommended' : 'Available';
+    const badgeColor =
+      index === 0
+        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+        : index === 1
+          ? 'bg-blue-100 text-[#16135c] border-blue-200'
+          : 'bg-gray-100 text-gray-700 border-gray-200';
 
     return {
       id: String(slot._id),
@@ -145,10 +162,13 @@ export async function getAvailableSlots(sellerId: string, dateStr: string) {
       startTime: slot.startTime,
       endTime: slot.endTime,
       label: `${formatTime(slot.startTime)} – ${formatTime(slot.endTime)}`,
+      period: getWindowPeriod(slot.startTime),
       maxCapacity,
       bookedCount: booked,
       remainingCapacity: remaining,
       status,
+      badge,
+      badgeColor,
     };
   });
 

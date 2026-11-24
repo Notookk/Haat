@@ -1,32 +1,46 @@
-# Dependencies
+# Dependencies & Package Managers
 node_modules/
 .pnpm-store/
+.npm/
+.yarn/
+package-lock.json
+yarn.lock
 
-# Build and bundle outputs
+# Build, Bundler & Cache outputs
 dist/
 build/
 out/
 .cache/
 .vite/
+.vitest/
+.vitest-cache/
+.turbo/
+.parcel-cache/
 *.tsbuildinfo
+.eslintcache
 
 # Environment and secrets (ignore all .env variants except example templates)
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
 !.env.*.example
 
-# Logs
+# Logs & Diagnostics
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Test and coverage
 coverage/
 *.lcov
 .nyc_output/
+test-results/
+playwright-report/
 
 # Editor and IDE
 .vscode/*
@@ -41,10 +55,27 @@ coverage/
 *.sublime-workspace
 *.sublime-project
 
+# AI Agents, Tools & Scratchpads
+.gemini/
+.antigravity/
+.system_generated/
+scratch/
+
 # Operating System files
 .DS_Store
 .DS_Store?
 ._*
 Thumbs.db
 ehthumbs.db
+ehthumbs_vista.db
 [Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+tmp/
+temp/

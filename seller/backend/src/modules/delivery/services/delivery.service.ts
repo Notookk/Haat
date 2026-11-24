@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { AppError, DeliverySlot, Order, SellerProfile, realtimeEventBus } from '@haat/shared-backend';
 
 export interface CreateSlotInput {
@@ -16,168 +17,177 @@ export interface UpdateSlotInput {
 
 export const sellerDeliveryService = {
   /**
-   * List delivery slots.
-   * If date is omitted, returns the seller's daily recurring delivery slots (same every day).
-   * If date is specified, returns date-specific delivery slots.
+   * List delivery slots directly from the deliveryslots collection.
+   * If date is omitted, returns all configured delivery slots for the seller.
+   * If date is specified, returns slots applicable to that date.
    */
   async listSlots(sellerId: string, date?: string) {
-    if (date) {
-      const slots = await DeliverySlot.find({ sellerId, date }).sort({ startTime: 1 }).lean();
-      return slots.map((s) => ({
-        id: s._id.toString(),
-        date: s.date,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        capacity: s.capacity,
-        bookedCount: s.bookedCount,
-        remainingCapacity: Math.max(0, s.capacity - s.bookedCount),
-        isActive: s.isActive,
-        createdAt: s.createdAt,
-      }));
-    }
-
-    // Daily Recurring Slots (Default Schedule)
-    const seller = await SellerProfile.findById(sellerId);
+    const sellerObjId = new Types.ObjectId(sellerId);
+    const seller = await SellerProfile.findById(sellerObjId);
     if (!seller) {
       throw AppError.notFound('Seller store not found.');
     }
 
-    const dailySlots = (seller as any).deliveryConfig?.dailySlots || [];
+    // Auto-migrate any legacy slots from seller.deliveryConfig.dailySlots into deliveryslots collection
+    const legacySlots: any[] = (seller as any).deliveryConfig?.dailySlots || [];
+    if (legacySlots.length > 0) {
+      for (const ls of legacySlots) {
+        const exists = await DeliverySlot.findOne({
+          sellerId: sellerObjId,
+          startTime: ls.startTime,
+          endTime: ls.endTime,
+          $or: [{ date: null }, { date: { $exists: false } }],
+        });
+        if (!exists) {
+          await DeliverySlot.create({
+            sellerId: sellerObjId,
+            date: null,
+            dayOfWeek: null,
+            startTime: ls.startTime,
+            endTime: ls.endTime,
+            capacity: ls.capacity || 20,
+            maxCapacity: ls.capacity || 20,
+            bookedCount: 0,
+            isActive: ls.isActive !== false,
+          });
+        }
+      }
+      (seller as any).deliveryConfig.dailySlots = [];
+      seller.markModified('deliveryConfig');
+      await seller.save();
+    }
 
-    return dailySlots.map((s: any) => ({
-      id: s._id ? s._id.toString() : `${s.startTime}-${s.endTime}`,
-      date: 'Daily Recurring (Every Operating Day)',
+    const query: any = { sellerId: sellerObjId, isActive: true };
+    if (date) {
+      query.$or = [{ date }, { date: null }, { date: { $exists: false } }];
+    }
+
+    const slots = await DeliverySlot.find(query).sort({ startTime: 1 }).lean();
+
+    return slots.map((s) => ({
+      id: s._id.toString(),
+      date: s.date || 'Daily Recurring (Every Operating Day)',
       startTime: s.startTime,
       endTime: s.endTime,
-      capacity: s.capacity,
-      bookedCount: 0,
-      remainingCapacity: s.capacity,
-      isActive: s.isActive ?? true,
-      isDailyRecurring: true,
-      createdAt: s.createdAt,
+      capacity: s.capacity ?? s.maxCapacity ?? 20,
+      bookedCount: s.bookedCount || 0,
+      remainingCapacity: Math.max(0, (s.capacity ?? s.maxCapacity ?? 20) - (s.bookedCount || 0)),
+      isActive: s.isActive !== false,
+      isDailyRecurring: !s.date,
+      createdAt: (s as any).createdAt,
     }));
   },
 
   /**
-   * Create a delivery slot.
+   * Create a delivery slot directly in the deliveryslots MongoDB collection.
    * If input.date is provided, creates a date-specific DeliverySlot.
-   * If input.date is omitted, creates a daily recurring slot that applies every operating day.
+   * If input.date is omitted, creates a daily recurring slot (date: null) that applies every operating day.
    */
   async createSlot(sellerId: string, input: CreateSlotInput) {
-    const { date, startTime, endTime, capacity = 9999 } = input;
+    const { date, startTime, endTime, capacity = 20 } = input;
 
     if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
       throw AppError.badRequest('Invalid time format. Use HH:MM.');
+    }
+    if (startTime >= endTime) {
+      throw AppError.badRequest('Start time must be before end time.');
     }
     if (capacity !== undefined && capacity < 1) {
       throw AppError.badRequest('Capacity must be at least 1 order.');
     }
 
-    // 1. Date-specific slot creation
-    if (date) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        throw AppError.badRequest('Invalid date format. Use YYYY-MM-DD.');
-      }
-      const existing = await DeliverySlot.findOne({ sellerId, date, startTime, endTime });
-      if (existing) {
-        throw AppError.conflict('A delivery slot for this date and time already exists.');
-      }
-
-      const slot = await DeliverySlot.create({
-        sellerId,
-        date,
-        startTime,
-        endTime,
-        capacity,
-        bookedCount: 0,
-        isActive: true,
-      });
-
-      await realtimeEventBus.publishDeliverySlotCapacityUpdated({
-        slotId: slot._id.toString(),
-        sellerId,
-        date: slot.date,
-        capacity: slot.capacity,
-        bookedCount: 0,
-        remainingCapacity: slot.capacity,
-      });
-
-      return {
-        id: slot._id.toString(),
-        date: slot.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        capacity: slot.capacity,
-        bookedCount: slot.bookedCount,
-        remainingCapacity: slot.capacity,
-        isActive: slot.isActive,
-        isDailyRecurring: false,
-      };
-    }
-
-    // 2. Daily Recurring Slot Creation (No date required, same everyday)
-    const seller = await SellerProfile.findById(sellerId);
+    const sellerObjId = new Types.ObjectId(sellerId);
+    const seller = await SellerProfile.findById(sellerObjId);
     if (!seller) {
       throw AppError.notFound('Seller store not found.');
     }
 
-    if (!(seller as any).deliveryConfig) {
-      (seller as any).deliveryConfig = {};
-    }
-    if (!(seller as any).deliveryConfig.dailySlots) {
-      (seller as any).deliveryConfig.dailySlots = [];
+    // Check duplicate delivery slot in deliveryslots collection
+    const duplicateQuery: any = {
+      sellerId: sellerObjId,
+      startTime,
+      endTime,
+      isActive: true,
+    };
+    if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw AppError.badRequest('Invalid date format. Use YYYY-MM-DD.');
+      }
+      duplicateQuery.date = date;
+    } else {
+      duplicateQuery.$or = [{ date: null }, { date: { $exists: false } }];
     }
 
-    const currentSlots: any[] = (seller as any).deliveryConfig.dailySlots;
-    const duplicate = currentSlots.some((s) => s.startTime === startTime && s.endTime === endTime);
-    if (duplicate) {
-      throw AppError.conflict('A daily delivery slot for this time window already exists.');
+    const existing = await DeliverySlot.findOne(duplicateQuery);
+    if (existing) {
+      throw AppError.conflict('A delivery slot for this time window already exists.');
     }
 
-    currentSlots.push({
+    // Store directly in deliveryslots collection
+    const slot = await DeliverySlot.create({
+      sellerId: sellerObjId,
+      date: date || null,
+      dayOfWeek: null,
       startTime,
       endTime,
       capacity,
+      maxCapacity: capacity,
+      bookedCount: 0,
       isActive: true,
     });
 
-    seller.markModified('deliveryConfig');
-    await seller.save();
-
-    const createdSlot = currentSlots[currentSlots.length - 1];
+    await realtimeEventBus.publishDeliverySlotCapacityUpdated({
+      slotId: slot._id.toString(),
+      sellerId: sellerId.toString(),
+      date: slot.date,
+      capacity: slot.capacity,
+      bookedCount: 0,
+      remainingCapacity: slot.capacity,
+    });
 
     return {
-      id: createdSlot._id.toString(),
-      date: 'Daily Recurring (Every Operating Day)',
-      startTime: createdSlot.startTime,
-      endTime: createdSlot.endTime,
-      capacity: createdSlot.capacity,
-      bookedCount: 0,
-      remainingCapacity: createdSlot.capacity,
-      isActive: createdSlot.isActive,
-      isDailyRecurring: true,
+      id: slot._id.toString(),
+      date: slot.date || 'Daily Recurring (Every Operating Day)',
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      capacity: slot.capacity,
+      bookedCount: slot.bookedCount,
+      remainingCapacity: slot.capacity,
+      isActive: slot.isActive,
+      isDailyRecurring: !slot.date,
     };
   },
 
   /**
-   * Batch create slots for multiple dates (backwards compatibility).
+   * Batch create slots for multiple dates in the deliveryslots collection.
    */
-  async batchCreateSlots(sellerId: string, input: { dates: string[]; startTime: string; endTime: string; capacity: number }) {
+  async batchCreateSlots(
+    sellerId: string,
+    input: { dates: string[]; startTime: string; endTime: string; capacity: number },
+  ) {
     const { dates, startTime, endTime, capacity } = input;
     if (!dates || dates.length === 0) {
       throw AppError.badRequest('Select at least one date.');
     }
 
+    const sellerObjId = new Types.ObjectId(sellerId);
     const created = [];
     for (const date of dates) {
-      const existing = await DeliverySlot.findOne({ sellerId, date, startTime, endTime });
+      const existing = await DeliverySlot.findOne({
+        sellerId: sellerObjId,
+        date,
+        startTime,
+        endTime,
+      });
       if (!existing) {
         const slot = await DeliverySlot.create({
-          sellerId,
+          sellerId: sellerObjId,
           date,
+          dayOfWeek: null,
           startTime,
           endTime,
           capacity,
+          maxCapacity: capacity,
           bookedCount: 0,
           isActive: true,
         });
@@ -189,47 +199,21 @@ export const sellerDeliveryService = {
   },
 
   /**
-   * Update a slot by ID (supports daily recurring slots as well as date-specific slots).
+   * Update a slot by ID directly in the deliveryslots collection.
    */
   async updateSlot(sellerId: string, slotId: string, input: UpdateSlotInput) {
-    // 1. Check daily recurring slots first
-    const seller = await SellerProfile.findById(sellerId);
-    if (seller && (seller as any).deliveryConfig?.dailySlots) {
-      const dailySlots: any[] = (seller as any).deliveryConfig.dailySlots;
-      const targetIndex = dailySlots.findIndex((s) => s._id.toString() === slotId);
-
-      if (targetIndex !== -1) {
-        const slot = dailySlots[targetIndex];
-        if (input.startTime !== undefined) slot.startTime = input.startTime;
-        if (input.endTime !== undefined) slot.endTime = input.endTime;
-        if (input.capacity !== undefined) slot.capacity = input.capacity;
-        if (input.isActive !== undefined) slot.isActive = input.isActive;
-
-        seller.markModified('deliveryConfig');
-        await seller.save();
-
-        return {
-          id: slot._id.toString(),
-          date: 'Daily Recurring (Every Operating Day)',
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          capacity: slot.capacity,
-          bookedCount: 0,
-          remainingCapacity: slot.capacity,
-          isActive: slot.isActive,
-          isDailyRecurring: true,
-        };
-      }
-    }
-
-    // 2. Check date-specific slot
-    const slot = await DeliverySlot.findOne({ _id: slotId, sellerId });
+    const sellerObjId = new Types.ObjectId(sellerId);
+    const slot = await DeliverySlot.findOne({ _id: slotId, sellerId: sellerObjId });
     if (!slot) {
-      throw AppError.notFound('Delivery slot not found.');
+      throw AppError.notFound('Delivery slot not found in database.');
     }
 
     if (input.startTime !== undefined) slot.startTime = input.startTime;
     if (input.endTime !== undefined) slot.endTime = input.endTime;
+
+    if (slot.startTime >= slot.endTime) {
+      throw AppError.badRequest('Start time must be before end time.');
+    }
 
     if (input.capacity !== undefined) {
       if (input.capacity < slot.bookedCount) {
@@ -238,6 +222,7 @@ export const sellerDeliveryService = {
         );
       }
       slot.capacity = input.capacity;
+      slot.maxCapacity = input.capacity;
     }
 
     if (input.isActive !== undefined) {
@@ -248,7 +233,7 @@ export const sellerDeliveryService = {
 
     await realtimeEventBus.publishDeliverySlotCapacityUpdated({
       slotId: slot._id.toString(),
-      sellerId,
+      sellerId: sellerId.toString(),
       date: slot.date,
       capacity: slot.capacity,
       bookedCount: slot.bookedCount,
@@ -257,39 +242,25 @@ export const sellerDeliveryService = {
 
     return {
       id: slot._id.toString(),
-      date: slot.date,
+      date: slot.date || 'Daily Recurring (Every Operating Day)',
       startTime: slot.startTime,
       endTime: slot.endTime,
       capacity: slot.capacity,
       bookedCount: slot.bookedCount,
       remainingCapacity: Math.max(0, slot.capacity - slot.bookedCount),
       isActive: slot.isActive,
-      isDailyRecurring: false,
+      isDailyRecurring: !slot.date,
     };
   },
 
   /**
-   * Delete a slot by ID (supports daily recurring slots as well as date-specific slots).
+   * Delete a slot by ID directly from the deliveryslots collection.
    */
   async deleteSlot(sellerId: string, slotId: string) {
-    // 1. Check daily recurring slots
-    const seller = await SellerProfile.findById(sellerId);
-    if (seller && (seller as any).deliveryConfig?.dailySlots) {
-      const dailySlots: any[] = (seller as any).deliveryConfig.dailySlots;
-      const targetIndex = dailySlots.findIndex((s) => s._id.toString() === slotId);
-
-      if (targetIndex !== -1) {
-        dailySlots.splice(targetIndex, 1);
-        seller.markModified('deliveryConfig');
-        await seller.save();
-        return { success: true };
-      }
-    }
-
-    // 2. Check date-specific slot
-    const slot = await DeliverySlot.findOne({ _id: slotId, sellerId });
+    const sellerObjId = new Types.ObjectId(sellerId);
+    const slot = await DeliverySlot.findOne({ _id: slotId, sellerId: sellerObjId });
     if (!slot) {
-      throw AppError.notFound('Delivery slot not found.');
+      throw AppError.notFound('Delivery slot not found in database.');
     }
 
     if (slot.bookedCount > 0) {
@@ -298,57 +269,31 @@ export const sellerDeliveryService = {
       );
     }
 
-    await DeliverySlot.deleteOne({ _id: slotId });
+    await DeliverySlot.deleteOne({ _id: slot._id });
     return { success: true };
   },
 
+  /**
+   * Retrieve orders associated with a delivery slot.
+   */
   async getSlotOrders(sellerId: string, slotId: string) {
-    const slot = await DeliverySlot.findOne({ _id: slotId, sellerId });
+    const sellerObjId = new Types.ObjectId(sellerId);
+    const slot = await DeliverySlot.findOne({ _id: slotId, sellerId: sellerObjId }).lean();
     if (!slot) {
-      // Slot could be a daily recurring template with orders referencing created date instances
-      const orders = await Order.find({
-        sellerId,
-        $or: [{ 'deliverySlot.slotId': slotId }],
-      })
-        .sort({ createdAt: -1 })
-        .lean();
-
-      return {
-        slot: {
-          id: slotId,
-          date: 'Daily Recurring Slot',
-          startTime: '09:00',
-          endTime: '11:00',
-          capacity: 10,
-          bookedCount: orders.length,
-          remainingCapacity: Math.max(0, 10 - orders.length),
-          isActive: true,
-        },
-        orders: orders.map((o) => ({
-          id: o._id.toString(),
-          orderNumber: o.orderNumber,
-          totalAmountPaise: o.totalAmountPaise,
-          fulfilmentStatus: o.fulfilmentStatus,
-          paymentStatus: o.paymentStatus,
-          customerName: o.shippingAddress?.name || 'Customer',
-          customerPhone: o.shippingAddress?.phone || 'N/A',
-          itemsCount: o.items?.length || 0,
-          createdAt: o.createdAt,
-        })),
-      };
+      throw AppError.notFound('Delivery slot not found in database.');
     }
 
     const orders = await Order.find({
-      sellerId,
+      sellerId: sellerObjId,
       'deliverySlot.slotId': slot._id,
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1, _id: 1 })
       .lean();
 
     return {
       slot: {
         id: slot._id.toString(),
-        date: slot.date,
+        date: slot.date || 'Daily Recurring Slot',
         startTime: slot.startTime,
         endTime: slot.endTime,
         capacity: slot.capacity,
@@ -371,7 +316,7 @@ export const sellerDeliveryService = {
   },
 
   /**
-   * Get delivery configuration for a seller (operating days, cutoff, lead time, blackout dates, dailySlots)
+   * Get delivery configuration for a seller (operating days, cutoff, lead time, blackout dates)
    */
   async getDeliveryConfig(sellerId: string) {
     const seller = await SellerProfile.findById(sellerId).select('deliveryConfig').lean();
@@ -388,7 +333,6 @@ export const sellerDeliveryService = {
       leadTimeHours: (seller as any)?.deliveryConfig?.leadTimeHours ?? 2,
       dailyCutoffTime: (seller as any)?.deliveryConfig?.dailyCutoffTime ?? '18:00',
       blackoutDates: (seller as any)?.deliveryConfig?.blackoutDates ?? [],
-      dailySlots: (seller as any)?.deliveryConfig?.dailySlots ?? [],
     };
   },
 
@@ -402,7 +346,6 @@ export const sellerDeliveryService = {
       leadTimeHours?: number;
       dailyCutoffTime?: string;
       blackoutDates?: string[];
-      dailySlots?: Array<{ startTime: string; endTime: string; capacity: number; isActive?: boolean }>;
     },
   ) {
     const seller = await SellerProfile.findById(sellerId);
@@ -424,9 +367,6 @@ export const sellerDeliveryService = {
     if (input.blackoutDates !== undefined) {
       current.blackoutDates = input.blackoutDates.filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d));
     }
-    if (input.dailySlots !== undefined) {
-      current.dailySlots = input.dailySlots;
-    }
 
     (seller as any).deliveryConfig = current;
     seller.markModified('deliveryConfig');
@@ -438,10 +378,11 @@ export const sellerDeliveryService = {
   /**
    * Public/Buyer endpoint to retrieve available slots for a seller on a given date.
    * Respects blackout dates, operating days, daily cut-off time, and remaining capacity.
-   * Automatically projects daily recurring slots onto the requested date.
+   * Queries directly from the deliveryslots collection.
    */
   async getAvailableSlots(sellerId: string, date: string) {
-    const seller = await SellerProfile.findById(sellerId);
+    const sellerObjId = new Types.ObjectId(sellerId);
+    const seller = await SellerProfile.findById(sellerObjId);
     if (!seller) return [];
 
     const config = await this.getDeliveryConfig(sellerId);
@@ -473,48 +414,23 @@ export const sellerDeliveryService = {
       }
     }
 
-    // 4. Ensure date-specific DeliverySlot records exist for all active dailySlots
-    const dailySlots: any[] = (seller as any).deliveryConfig?.dailySlots || [];
-    if (dailySlots.length > 0) {
-      for (const ds of dailySlots) {
-        if (ds.isActive !== false) {
-          const existing = await DeliverySlot.findOne({
-            sellerId,
-            date,
-            startTime: ds.startTime,
-            endTime: ds.endTime,
-          });
-          if (!existing) {
-            await DeliverySlot.create({
-              sellerId,
-              date,
-              startTime: ds.startTime,
-              endTime: ds.endTime,
-              capacity: ds.capacity,
-              bookedCount: 0,
-              isActive: true,
-            });
-          }
-        }
-      }
-    }
-
+    // 4. Query deliveryslots collection directly
     const slots = await DeliverySlot.find({
-      sellerId,
-      date,
+      sellerId: sellerObjId,
       isActive: true,
+      $or: [{ date }, { date: null }, { dayOfWeek: dayName }],
     })
       .sort({ startTime: 1 })
       .lean();
 
     return slots
-      .filter((s) => s.bookedCount < s.capacity)
+      .filter((s) => s.bookedCount < (s.capacity ?? s.maxCapacity ?? 20))
       .map((s) => ({
         slotId: s._id.toString(),
         startTime: s.startTime,
         endTime: s.endTime,
         label: `${s.startTime} - ${s.endTime}`,
-        remainingCapacity: s.capacity - s.bookedCount,
+        remainingCapacity: (s.capacity ?? s.maxCapacity ?? 20) - s.bookedCount,
       }));
   },
 };

@@ -31,7 +31,7 @@ const listTransactionsHandler: RequestHandler = async (req, res) => {
       .populate('orderId', 'orderNumber totalAmountPaise paymentStatus')
       .populate('buyerId', 'fullName email phoneNumber')
       .populate('sellerId', 'storeName storeSlug')
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1, _id: 1 })
       .skip(skip)
       .limit(limit)
       .lean(),

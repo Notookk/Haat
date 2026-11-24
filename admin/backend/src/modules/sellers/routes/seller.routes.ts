@@ -10,6 +10,7 @@ import {
   rejectSellerHandler,
   blockSellerHandler,
   unblockSellerHandler,
+  deleteSellerHandler,
 } from '../controllers/seller.controller';
 import {
   sellerListQuerySchema,
@@ -35,3 +36,4 @@ adminSellerRouter.post('/:id/approve', validate(approveSellerSchema, 'body'), ap
 adminSellerRouter.post('/:id/reject', validate(rejectSellerSchema, 'body'), rejectSellerHandler);
 adminSellerRouter.post('/:id/block', validate(blockSellerSchema, 'body'), blockSellerHandler);
 adminSellerRouter.post('/:id/unblock', validate(unblockSellerSchema, 'body'), unblockSellerHandler);
+adminSellerRouter.delete('/:id', deleteSellerHandler);

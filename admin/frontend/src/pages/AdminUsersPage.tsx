@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -14,7 +14,7 @@ import {
   AlertCircle,
   Eye,
 } from 'lucide-react';
-import type { UserRole } from '@haat/shared-contracts';
+import { type UserRole, SOCKET_EVENTS } from '@haat/shared-contracts';
 import {
   api,
   Badge,
@@ -26,6 +26,8 @@ import {
   EmptyState,
   formatDate,
   showToast,
+  createSocketClient,
+  getAccessToken,
 } from '@haat/shared-frontend';
 
 interface UserItem {
@@ -78,6 +80,32 @@ export function AdminUsersPage() {
       };
     },
   });
+
+  // Real-time synchronization via Socket.IO
+  useEffect(() => {
+    const token = getAccessToken();
+    const socket = createSocketClient({
+      token,
+    });
+
+    const handleInvalidate = () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+    };
+
+    socket.on(SOCKET_EVENTS.BUYER_REGISTERED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.BUYER_UPDATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.APPLICATION_CREATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.SELLER_STATUS_CHANGED, handleInvalidate);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.BUYER_REGISTERED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.BUYER_UPDATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.APPLICATION_CREATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.SELLER_STATUS_CHANGED, handleInvalidate);
+      socket.disconnect();
+    };
+  }, [queryClient]);
 
   const statusMutation = useMutation({
     mutationFn: async ({ userId, isActive, reason }: { userId: string; isActive: boolean; reason: string }) => {
@@ -362,7 +390,14 @@ export function AdminUsersPage() {
       {/* User Details Drawer Modal */}
       {selectedUser
         ? createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in-50">
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setSelectedUser(null);
+                }
+              }}
+            >
               <div className="w-full max-w-lg rounded-2xl bg-surface p-6 shadow-modal border border-line">
                 <div className="flex items-start justify-between border-b border-line pb-4">
                   <div>
@@ -407,7 +442,14 @@ export function AdminUsersPage() {
       {/* Status Toggle Modal */}
       {statusModalUser
         ? createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in-50">
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setStatusModalUser(null);
+                }
+              }}
+            >
               <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-modal border border-line">
                 <div className="flex items-center gap-3">
                   <div

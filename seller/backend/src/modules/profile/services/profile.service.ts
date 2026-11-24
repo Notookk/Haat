@@ -159,6 +159,13 @@ export const sellerProfileService = {
       // Non-blocking
     }
 
+    void realtimeEventBus.publishStoreUpdated({
+      sellerId: seller._id.toString(),
+      storeName: seller.storeName,
+      storeSlug: seller.storeSlug,
+      timestamp: new Date().toISOString(),
+    });
+
     return seller;
   },
 

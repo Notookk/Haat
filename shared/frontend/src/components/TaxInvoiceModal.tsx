@@ -226,6 +226,11 @@ export function TaxInvoiceModal({
   const modalContent = (
     <div
       id="tax-invoice-modal-portal"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto print:fixed print:inset-0 print:p-0 print:bg-white print:z-[9999] print:overflow-visible print:block"
     >
       {/* Print isolation stylesheet for fallback window.print() */}
@@ -427,7 +432,12 @@ export function TaxInvoiceModal({
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-[#0AAD0A]" />
                     <span className="font-semibold text-gray-800">
-                      Payment Status: <strong className="uppercase text-gray-900">{invoiceData.paymentStatus}</strong>
+                      Payment Status:{' '}
+                      <strong className="uppercase text-gray-900">
+                        {invoiceData.paymentMethod === 'COD'
+                          ? 'Cash on Delivery (Pay on Arrival)'
+                          : invoiceData.paymentStatus}
+                      </strong>
                     </span>
                   </div>
                   {invoiceData.paymentMethod && (

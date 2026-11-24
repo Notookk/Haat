@@ -92,6 +92,7 @@ export function useSellerCategories() {
           description?: string | null;
           imageUrl?: string | null;
           imagePublicId?: string | null;
+          createdAt?: string;
         }>;
       }>('/api/v1/seller/categories');
       return res.data.categories;

@@ -11,6 +11,7 @@ export * from './schemas/checkout';
 export * from './schemas/rfq';
 export * from './schemas/orders';
 export * from './schemas/payments';
+export * from './schemas/address';
 export * from './types';
 export * from './constants';
 export * from './realtime';

@@ -23,6 +23,7 @@ interface OrderItem {
   totalAmountPaise: number;
   deliveryDate: string | null;
   deliverySlot: { label?: string; startTime?: string; endTime?: string } | null;
+  paymentMethod?: string;
   paymentStatus: string;
   fulfilmentStatus: string;
   createdAt: string;
@@ -53,18 +54,20 @@ export function OrdersPage() {
 
   const orders = data?.orders || [];
 
-  const filteredOrders = orders.filter((o) => {
-    if (filter === 'ACTIVE') {
-      return !['DELIVERED', 'CANCELLED'].includes(o.fulfilmentStatus);
-    }
-    if (filter === 'DELIVERED') {
-      return o.fulfilmentStatus === 'DELIVERED';
-    }
-    if (filter === 'CANCELLED') {
-      return o.fulfilmentStatus === 'CANCELLED';
-    }
-    return true;
-  });
+  const filteredOrders = orders
+    .filter((o) => {
+      if (filter === 'ACTIVE') {
+        return !['DELIVERED', 'CANCELLED'].includes(o.fulfilmentStatus);
+      }
+      if (filter === 'DELIVERED') {
+        return o.fulfilmentStatus === 'DELIVERED';
+      }
+      if (filter === 'CANCELLED') {
+        return o.fulfilmentStatus === 'CANCELLED';
+      }
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const getFulfilmentBadge = (status: string) => {
     switch (status) {
@@ -167,13 +170,15 @@ export function OrdersPage() {
                   <div className="flex items-center gap-2">
                     {getFulfilmentBadge(order.fulfilmentStatus)}
                     <span
-                      className={`rounded-full px-2 py-0.5 text-micro font-semibold uppercase ${
-                        order.paymentStatus === 'PAID'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-amber-50 text-amber-700'
+                      className={`rounded-full px-2.5 py-0.5 text-micro font-semibold uppercase ${
+                        order.paymentMethod === 'COD'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : order.paymentStatus === 'PAID'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
                       }`}
                     >
-                      {order.paymentStatus}
+                      {order.paymentMethod === 'COD' ? 'COD' : 'ONLINE'}
                     </span>
                   </div>
                 </div>

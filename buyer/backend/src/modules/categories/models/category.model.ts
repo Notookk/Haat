@@ -13,7 +13,7 @@ export interface CreateCategoryData {
 
 export const categoryModel = {
   async findAll(filter: Record<string, unknown> = {}) {
-    return Category.find(filter).sort({ depth: 1, displayOrder: 1, name: 1 }).lean();
+    return Category.find(filter).sort({ depth: 1, createdAt: 1, _id: 1 }).lean();
   },
 
   async findActiveSubtreeData() {

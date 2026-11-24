@@ -11,10 +11,29 @@ export interface CreateAdminRefreshTokenData {
 export const adminAuthModel = {
   async findAdminForLogin(identifier: string) {
     const trimmed = identifier.trim();
-    const isEmail = trimmed.includes('@');
-    const filter = isEmail ? { email: trimmed.toLowerCase() } : { phoneNumber: trimmed };
+    if (!trimmed) return null;
 
-    return User.findOne(filter).select('+passwordHash').lean();
+    if (trimmed.toLowerCase() === 'admin') {
+      return User.findOne({
+        $or: [{ email: 'admin@haat.com' }, { role: 'ADMIN' }, { role: 'SUPER_ADMIN' }],
+      }).select('+passwordHash').lean();
+    }
+
+    if (trimmed.includes('@')) {
+      return User.findOne({ email: trimmed.toLowerCase() }).select('+passwordHash').lean();
+    }
+
+    // Normalize phone number (handle country code +91 or non-digit chars)
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    const phone10 = digitsOnly.length === 12 && digitsOnly.startsWith('91')
+      ? digitsOnly.slice(2)
+      : digitsOnly.length > 10
+        ? digitsOnly.slice(-10)
+        : digitsOnly;
+
+    return User.findOne({
+      $or: [{ phoneNumber: trimmed }, { phoneNumber: phone10 }],
+    }).select('+passwordHash').lean();
   },
 
   async findAdminById(id: string) {

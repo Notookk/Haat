@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import {
   Users,
@@ -13,6 +13,7 @@ import {
   Calendar,
   CheckCircle2,
   AlertCircle,
+  Wifi,
 } from 'lucide-react';
 import {
   api,
@@ -24,7 +25,10 @@ import {
   EmptyState,
   money,
   formatDate,
+  createSocketClient,
+  getAccessToken,
 } from '@haat/shared-frontend';
+import { SOCKET_EVENTS } from '@haat/shared-contracts';
 
 interface BuyerListItem {
   id: string;
@@ -76,10 +80,39 @@ interface BuyerDetail {
 }
 
 export function AdminBuyersPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedBuyerId, setSelectedBuyerId] = useState<string | null>(null);
+
+  // Real-time WebSocket synchronization via Socket.IO
+  useEffect(() => {
+    const token = getAccessToken();
+    const socket = createSocketClient({
+      token,
+    });
+
+    const handleInvalidate = () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'buyers'] });
+      if (selectedBuyerId) {
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'buyer', selectedBuyerId] });
+      }
+    };
+
+    socket.on(SOCKET_EVENTS.BUYER_REGISTERED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.BUYER_UPDATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.ORDER_CREATED, handleInvalidate);
+    socket.on(SOCKET_EVENTS.ORDER_STATUS_CHANGED, handleInvalidate);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.BUYER_REGISTERED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.BUYER_UPDATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.ORDER_CREATED, handleInvalidate);
+      socket.off(SOCKET_EVENTS.ORDER_STATUS_CHANGED, handleInvalidate);
+      socket.disconnect();
+    };
+  }, [queryClient, selectedBuyerId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -124,6 +157,10 @@ export function AdminBuyersPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Live Sync</span>
+          </span>
           <span className="text-xs font-semibold text-ink-600">
             {data?.total ? `${data.total} registered buyers` : 'Loading…'}
           </span>

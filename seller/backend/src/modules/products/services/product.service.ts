@@ -11,6 +11,7 @@ import {
   uniqueSlug,
   deleteCloudinaryImages,
   deleteCloudinaryProductFolder,
+  realtimeEventBus,
 } from '@haat/shared-backend';
 
 interface SellerContext {
@@ -166,7 +167,10 @@ export const sellerProductService = {
     const sort: Record<string, SortOrder> = {};
     if (input.sort === 'price-asc') sort.retailPricePaise = 1;
     else if (input.sort === 'price-desc') sort.retailPricePaise = -1;
-    else sort.createdAt = -1;
+    else {
+      sort.createdAt = 1;
+      sort._id = 1;
+    }
 
     const [rawItems, total] = await Promise.all([
       Product.find(filter)
@@ -262,6 +266,16 @@ export const sellerProductService = {
     } catch {
       // Non-blocking
     }
+
+    void realtimeEventBus.publishProductCreated({
+      productId: product._id.toString(),
+      sellerId: seller.id.toString(),
+      categoryId: category._id.toString(),
+      action: 'CREATED',
+      title: product.title,
+      slug: product.slug,
+      timestamp: new Date().toISOString(),
+    });
 
     return product;
   },
@@ -369,6 +383,16 @@ export const sellerProductService = {
       // Non-blocking
     }
 
+    void realtimeEventBus.publishProductUpdated({
+      productId: product._id.toString(),
+      sellerId: seller.id.toString(),
+      categoryId: product.categoryId ? product.categoryId.toString() : undefined,
+      action: 'UPDATED',
+      title: product.title,
+      slug: product.slug,
+      timestamp: new Date().toISOString(),
+    });
+
     return product;
   },
 
@@ -414,6 +438,16 @@ export const sellerProductService = {
       // Non-blocking
     }
 
+    void realtimeEventBus.publishProductDeleted({
+      productId: product._id.toString(),
+      sellerId: seller.id.toString(),
+      categoryId: product.categoryId ? product.categoryId.toString() : undefined,
+      action: 'DELETED',
+      title: product.title,
+      slug: product.slug,
+      timestamp: new Date().toISOString(),
+    });
+
     return product;
   },
 
@@ -430,6 +464,16 @@ export const sellerProductService = {
 
     variant.stockQuantity = Math.max(0, quantity);
     await product.save();
+
+    void realtimeEventBus.publishProductUpdated({
+      productId: product._id.toString(),
+      sellerId: seller.id.toString(),
+      categoryId: product.categoryId ? product.categoryId.toString() : undefined,
+      action: 'UPDATED',
+      title: product.title,
+      slug: product.slug,
+      timestamp: new Date().toISOString(),
+    });
 
     return product;
   },

@@ -68,7 +68,11 @@ export const sellerDashboardService = {
         .lean(),
       DeliverySlot.find({
         sellerId,
-        date: { $gte: now.toISOString().split('T')[0] },
+        $or: [
+          { date: { $gte: now.toISOString().split('T')[0] } },
+          { date: null },
+          { date: { $exists: false } },
+        ],
         isActive: true,
       })
         .sort({ date: 1, startTime: 1 })
@@ -190,28 +194,16 @@ export const sellerDashboardService = {
         unitsSold: item.unitsSold,
         revenuePaise: item.revenuePaise,
       })),
-      upcomingDeliverySlots:
-        upcomingSlotsRaw.length > 0
-          ? upcomingSlotsRaw.map((s) => ({
-              id: s._id.toString(),
-              date: s.date,
-              startTime: s.startTime,
-              endTime: s.endTime,
-              capacity: s.capacity,
-              bookedCount: s.bookedCount,
-              remainingCapacity: Math.max(0, s.capacity - s.bookedCount),
-              isActive: s.isActive,
-            }))
-          : (((seller as any).deliveryConfig?.dailySlots || []) as any[]).map((ds: any) => ({
-              id: ds._id?.toString() || 'slot',
-              date: 'Daily Recurring (Every Day)',
-              startTime: ds.startTime,
-              endTime: ds.endTime,
-              capacity: ds.capacity,
-              bookedCount: 0,
-              remainingCapacity: ds.capacity,
-              isActive: ds.isActive ?? true,
-            })),
+      upcomingDeliverySlots: upcomingSlotsRaw.map((s) => ({
+        id: s._id.toString(),
+        date: s.date || 'Daily Recurring (Every Day)',
+        startTime: s.startTime,
+        endTime: s.endTime,
+        capacity: s.capacity,
+        bookedCount: s.bookedCount,
+        remainingCapacity: Math.max(0, s.capacity - s.bookedCount),
+        isActive: s.isActive,
+      })),
       revenueOverview,
     };
   },

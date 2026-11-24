@@ -13,6 +13,20 @@ export const SOCKET_EVENTS = {
   ORDER_CREATED: 'order:created',
   ORDER_STATUS_CHANGED: 'order:status-changed',
   DELIVERY_SLOT_CAPACITY_UPDATED: 'delivery-slot:capacity-updated',
+  PRODUCT_CREATED: 'catalog:product-created',
+  PRODUCT_UPDATED: 'catalog:product-updated',
+  PRODUCT_DELETED: 'catalog:product-deleted',
+  CATEGORY_CREATED: 'catalog:category-created',
+  CATEGORY_UPDATED: 'catalog:category-updated',
+  CATEGORY_DELETED: 'catalog:category-deleted',
+  STORE_UPDATED: 'store:updated',
+  BUYER_REGISTERED: 'buyer:registered',
+  BUYER_UPDATED: 'buyer:updated',
+  CHAT_MESSAGE: 'chat:message',
+  CHAT_BLOCKED: 'chat:blocked',
+  CHAT_UNBLOCKED: 'chat:unblocked',
+  CHAT_DELETED: 'chat:deleted',
+  CHAT_MESSAGES_DELETED: 'chat:messages_deleted',
 } as const;
 
 export type SocketEventName = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];
@@ -55,3 +69,78 @@ export interface AdminSellerUpdatedPayload {
   reason?: string;
   timestamp: string;
 }
+
+export interface ProductChangedPayload {
+  productId: string;
+  sellerId: string;
+  categoryId?: string;
+  action: 'CREATED' | 'UPDATED' | 'DELETED';
+  title?: string;
+  slug?: string;
+  timestamp: string;
+}
+
+export interface CategoryChangedPayload {
+  categoryId: string;
+  action: 'CREATED' | 'UPDATED' | 'DELETED';
+  name?: string;
+  slug?: string;
+  timestamp: string;
+}
+
+export interface StoreUpdatedPayload {
+  sellerId: string;
+  storeName: string;
+  storeSlug: string;
+  timestamp: string;
+}
+
+export interface BuyerRegisteredPayload {
+  buyerId: string;
+  fullName: string;
+  phoneNumber: string;
+  email?: string | null;
+  role: string;
+  createdAt: string;
+  action: 'REGISTERED';
+}
+
+export interface BuyerUpdatedPayload {
+  buyerId: string;
+  isActive?: boolean;
+  fullName?: string;
+  updatedAt: string;
+}
+
+export interface ChatBlockedPayload {
+  sellerSlug: string;
+  buyerId?: string | null;
+  buyerName?: string | null;
+  blockedBy: 'BUYER' | 'SELLER';
+  reason?: string | null;
+  timestamp: string;
+}
+
+export interface ChatUnblockedPayload {
+  sellerSlug: string;
+  buyerId?: string | null;
+  buyerName?: string | null;
+  timestamp: string;
+}
+
+export interface ChatDeletedPayload {
+  sellerSlug?: string;
+  buyerId?: string | null;
+  buyerName?: string | null;
+  deletedConversations?: Array<{ sellerSlug: string; buyerId?: string | null }>;
+  timestamp: string;
+}
+
+export interface ChatMessagesDeletedPayload {
+  messageIds: string[];
+  sellerSlug?: string;
+  buyerId?: string | null;
+  buyerName?: string | null;
+  timestamp: string;
+}
+

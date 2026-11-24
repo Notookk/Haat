@@ -90,6 +90,7 @@ const sellerProfileSchema = new Schema(
     ratingAverage: { type: Number, default: 0, min: 0, max: 5 },
     ratingCount: { type: Number, default: 0, min: 0 },
     onboardingCompletedAt: { type: Date, default: null },
+    defaultSlotsInitialized: { type: Boolean, default: false },
 
     deliveryConfig: {
       operatingDays: {

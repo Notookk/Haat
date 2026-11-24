@@ -71,7 +71,7 @@ export const sellerOrderService = {
     const [total, orders, tabCounts] = await Promise.all([
       Order.countDocuments(baseQuery),
       Order.find(baseQuery)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .populate('buyerId', 'fullName email phoneNumber')

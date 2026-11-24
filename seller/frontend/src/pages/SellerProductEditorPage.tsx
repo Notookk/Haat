@@ -28,9 +28,9 @@ import {
   useMyProduct,
   useUpdateProduct,
   useSellerCategories,
-  useCreateCategory,
 } from '../features/products/api';
 import { ImagePicker } from '../components/ImagePicker';
+import { AddCategoryModal } from '../components/AddCategoryModal';
 
 const DESCRIPTION_LIMIT = 4000;
 
@@ -44,7 +44,6 @@ export function SellerProductEditorPage() {
   const existing = useMyProduct(isEdit ? id : undefined);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct(id ?? '');
-  const createCategory = useCreateCategory();
 
   // Stable client-generated 24-char hex MongoDB ObjectId for new products to route Cloudinary images to Haat/<productId>/...
   const [newProductId] = useState(() =>
@@ -53,10 +52,7 @@ export function SellerProductEditorPage() {
   const activeProductId = isEdit ? id! : newProductId;
 
   const [serverError, setServerError] = useState<string | null>(null);
-  const [showCategoryCreator, setShowCategoryCreator] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatDesc, setNewCatDesc] = useState('');
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const loadedProductId = useRef<string | null>(null);
 
   const form = useForm<ProductEditorValues>({
@@ -127,30 +123,6 @@ export function SellerProductEditorPage() {
       setValue('retailPriceRupees', discounted, { shouldValidate: false });
     }
   }, [totalPriceNum, isReasonablePrice, discountPercentNum, setValue]);
-
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCatName.trim() || newCatName.trim().length < 2) {
-      showToast.error('Category Name', 'Please enter at least 2 characters for category name.');
-      return;
-    }
-    setIsCreatingCategory(true);
-    try {
-      const created = await createCategory.mutateAsync({
-        name: newCatName.trim(),
-        description: newCatDesc.trim() || undefined,
-      });
-      setValue('categoryId', created._id, { shouldValidate: true, shouldDirty: true });
-      showToast.success('Category Option Added', `"${created.name}" is now available and selected.`);
-      setNewCatName('');
-      setNewCatDesc('');
-      setShowCategoryCreator(false);
-    } catch (err) {
-      showToast.error('Failed to Add Category', errorMessage(err));
-    } finally {
-      setIsCreatingCategory(false);
-    }
-  };
 
   const onInvalid = (fieldErrors: typeof errors) => {
     const errorEntries = Object.entries(fieldErrors);
@@ -302,11 +274,11 @@ export function SellerProductEditorPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => setShowCategoryCreator((v) => !v)}
-                    className="inline-flex items-center gap-1 text-micro font-bold text-brand-600 hover:text-brand-700 transition-colors cursor-pointer"
+                    onClick={() => setShowCategoryModal(true)}
+                    className="inline-flex items-center gap-1.5 text-micro font-bold text-brand-600 hover:text-brand-700 transition-colors cursor-pointer"
                   >
-                    <FolderPlus className="h-3.5 w-3.5" />
-                    <span>{showCategoryCreator ? 'Close' : '+ Add New Category'}</span>
+                    <FolderPlus className="h-4 w-4" />
+                    <span>+ Add New Category</span>
                   </button>
                 </div>
 
@@ -324,48 +296,6 @@ export function SellerProductEditorPage() {
                     ) : undefined,
                   }))}
                 />
-
-                {showCategoryCreator && (
-                  <div className="rounded-lg border border-brand-200 bg-brand-50/70 p-3 space-y-2 animate-in fade-in duration-100">
-                    <span className="text-micro font-bold uppercase tracking-wider text-brand-800">
-                      Create Category
-                    </span>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <input
-                        type="text"
-                        value={newCatName}
-                        onChange={(e) => setNewCatName(e.target.value)}
-                        placeholder="Category Name"
-                        className="h-8 rounded-md border border-brand-300 bg-surface px-2.5 text-caption text-ink-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                      />
-                      <input
-                        type="text"
-                        value={newCatDesc}
-                        onChange={(e) => setNewCatDesc(e.target.value)}
-                        placeholder="Description (optional)"
-                        className="h-8 rounded-md border border-brand-300 bg-surface px-2.5 text-caption text-ink-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowCategoryCreator(false)}
-                        className="rounded-md border border-line bg-surface px-2.5 py-0.5 text-micro text-ink-600"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isCreatingCategory || !newCatName.trim()}
-                        onClick={handleCreateCategory}
-                        className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-0.5 text-micro font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-                      >
-                        <Check className="h-3 w-3" />
-                        <span>Add</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* 3. SKU (Auto Generated from Product Name) */}
@@ -533,6 +463,15 @@ export function SellerProductEditorPage() {
           </div>
         </form>
       )}
+
+      {/* Overlay Add Category Modal (outside form to avoid event bubbling) */}
+      <AddCategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        onCategoryCreated={(created) => {
+          setValue('categoryId', created._id, { shouldValidate: false, shouldDirty: true });
+        }}
+      />
     </div>
   );
 }

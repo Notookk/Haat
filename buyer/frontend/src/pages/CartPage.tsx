@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ShoppingBag,
@@ -6,15 +6,14 @@ import {
   Minus,
   Plus,
   ChevronRight,
-  ChevronDown,
   ArrowRight,
   ShieldCheck,
   Clock,
-  Calendar,
   Sparkles,
   MessageSquare,
   CheckCircle2,
-  Check,
+  AlertCircle,
+  Truck,
 } from 'lucide-react';
 import {
   useCartItems,
@@ -23,133 +22,43 @@ import {
   clearCart,
 } from '../features/chat/chatStore';
 import { money, showToast } from '@haat/shared-frontend';
+import { useAuth } from '../features/auth/AuthProvider';
 
-export interface DynamicDeliverySlot {
-  id: string;
-  dayOffset: number; // 1 = Tomorrow, 2 = Day After, 3 = Day 3
-  dayLabel: string; // e.g. "Tomorrow" | "Saturday" | "Sunday"
-  dateShort: string; // e.g. "Nov 21"
-  dateFull: string; // e.g. "Fri, 21 Nov"
-  timeRange: string; // e.g. "09:00 AM – 12:00 PM"
-  period: 'Morning' | 'Afternoon' | 'Evening';
-  badge: string; // "Fastest Delivery" | "Recommended" | "Available"
-  badgeColor: string;
-  displayLabel: string;
-}
-
-function getDynamicDeliveryDays() {
-  const days: { offset: number; dayLabel: string; dateShort: string; dateFull: string }[] = [];
-  const today = new Date();
-  for (let i = 1; i <= 3; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const dayLabel =
-      i === 1 ? 'Tomorrow' : i === 2 ? 'Day After Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'long' });
-    const dateShort = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-    const dateFull = d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
-    days.push({ offset: i, dayLabel, dateShort, dateFull });
-  }
-  return days;
-}
-
-function getDynamicDeliverySlots(): DynamicDeliverySlot[] {
-  const days = getDynamicDeliveryDays();
-  const slots: DynamicDeliverySlot[] = [];
-
-  days.forEach(({ offset, dayLabel, dateShort, dateFull }) => {
-    // 1. Morning Slot
-    slots.push({
-      id: `slot-${offset}-morning`,
-      dayOffset: offset,
-      dayLabel,
-      dateShort,
-      dateFull,
-      timeRange: '09:00 AM – 12:00 PM',
-      period: 'Morning',
-      badge: offset === 1 ? 'Fastest Delivery' : 'Available',
-      badgeColor:
-        offset === 1
-          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-          : 'bg-gray-100 text-gray-700 border-gray-200',
-      displayLabel: `${dayLabel} (${dateFull}) • Morning (09:00 AM – 12:00 PM)`,
-    });
-
-    // 2. Afternoon Slot
-    slots.push({
-      id: `slot-${offset}-afternoon`,
-      dayOffset: offset,
-      dayLabel,
-      dateShort,
-      dateFull,
-      timeRange: '12:00 PM – 03:00 PM',
-      period: 'Afternoon',
-      badge: offset === 1 ? 'Recommended' : 'Available',
-      badgeColor:
-        offset === 1
-          ? 'bg-blue-100 text-blue-800 border-blue-200'
-          : 'bg-gray-100 text-gray-700 border-gray-200',
-      displayLabel: `${dayLabel} (${dateFull}) • Afternoon (12:00 PM – 03:00 PM)`,
-    });
-
-    // 3. Evening Slot
-    slots.push({
-      id: `slot-${offset}-evening`,
-      dayOffset: offset,
-      dayLabel,
-      dateShort,
-      dateFull,
-      timeRange: '04:00 PM – 08:00 PM',
-      period: 'Evening',
-      badge: 'Available',
-      badgeColor: 'bg-gray-100 text-gray-700 border-gray-200',
-      displayLabel: `${dayLabel} (${dateFull}) • Evening (04:00 PM – 08:00 PM)`,
-    });
-  });
-
-  return slots;
-}
+const MIN_ORDER_PAISE = 9900; // ₹99
+const FREE_DELIVERY_THRESHOLD_PAISE = 19900; // ₹199
+const STANDARD_DELIVERY_FEE_PAISE = 4900; // ₹49
 
 export function CartPage() {
   const navigate = useNavigate();
+  const { user, status } = useAuth();
+  const isAuthenticated = status === 'authenticated' && Boolean(user);
   const cartItems = useCartItems();
 
-  // Dynamic scheduled delivery slots
-  const deliveryDays = useMemo(() => getDynamicDeliveryDays(), []);
-  const allSlots = useMemo(() => getDynamicDeliverySlots(), []);
-  const [selectedSlotId, setSelectedSlotId] = useState<string>(allSlots[0]?.id || 'slot-1-morning');
-  const [activeDayOffset, setActiveDayOffset] = useState<number>(1);
-  const [isSlotDropdownOpen, setIsSlotDropdownOpen] = useState(false);
-  const slotDropdownRef = useRef<HTMLDivElement>(null);
-
-  const selectedSlot = useMemo(() => {
-    return allSlots.find((s) => s.id === selectedSlotId) || allSlots[0];
-  }, [allSlots, selectedSlotId]);
-
-  const currentDaySlots = useMemo(() => {
-    return allSlots.filter((s) => s.dayOffset === activeDayOffset);
-  }, [allSlots, activeDayOffset]);
-
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-
-  // Close slot dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (slotDropdownRef.current && !slotDropdownRef.current.contains(e.target as Node)) {
-        setIsSlotDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const subtotalPaise = cartItems.reduce(
     (acc, item) => acc + item.pricePaise * item.quantity,
     0,
   );
-  const deliveryPaise = 0; // Free scheduled delivery
+  const isFreeDelivery = subtotalPaise >= FREE_DELIVERY_THRESHOLD_PAISE;
+  const deliveryPaise = isFreeDelivery ? 0 : STANDARD_DELIVERY_FEE_PAISE;
   const totalPaise = subtotalPaise + deliveryPaise;
+  const isMinOrderMet = subtotalPaise >= MIN_ORDER_PAISE;
+  const minOrderShortfall = MIN_ORDER_PAISE - subtotalPaise;
+  const freeDeliveryShortfall = FREE_DELIVERY_THRESHOLD_PAISE - subtotalPaise;
+  const totalUnits = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   const handleCheckout = () => {
+    if (!isAuthenticated || !user) {
+      showToast.info('Sign In Required', 'Please sign in to your account to proceed to checkout and place an order.');
+      navigate('/login?redirect=/checkout');
+      return;
+    }
+    if (!isMinOrderMet) {
+      showToast.error('Minimum Order ₹99', `Please add items worth at least ${money(minOrderShortfall)} more.`);
+      return;
+    }
+    setIsCheckingOut(true);
     navigate('/checkout');
   };
 
@@ -207,114 +116,149 @@ export function CartPage() {
             <p className="mt-2 text-xs text-[#5c6c75] leading-relaxed max-w-sm mx-auto">
               Looks like you haven&apos;t added any items to your cart yet. Explore thousands of verified groceries, daily essentials, and wholesale supplies.
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-6">
               <Link
                 to="/catalogue"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#16135c] hover:bg-[#12104b] text-white px-6 text-xs font-bold shadow-sm transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#16135c] hover:bg-[#12104b] text-white px-6 py-3 text-xs font-bold shadow-md transition-all"
               >
-                <span>Browse Catalogue</span>
+                <span>Explore Products</span>
                 <ArrowRight size={14} />
-              </Link>
-              <Link
-                to="/"
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-6 text-xs font-bold text-[#21313c] hover:bg-gray-50 transition-colors shadow-2xs"
-              >
-                Back to Home
               </Link>
             </div>
           </div>
         ) : (
-          /* Cart Grid: Left Items + Right Summary */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Column: Cart Items List (Span 8) */}
+          /* 3. Non-Empty Cart: Items List + Order Summary */
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 items-start">
+            {/* Left Column: Items List (Span 8) */}
             <div className="lg:col-span-8 space-y-4">
-              <div className="rounded-2xl border border-gray-200/80 bg-white shadow-2xs divide-y divide-gray-100 overflow-hidden">
-                <div className="px-5 py-3.5 bg-[#f8f9fa] flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[#889397]">
-                  <span>Items in Cart ({cartItems.length})</span>
-                  <span>Quantity & Subtotal</span>
-                </div>
+              <div className="flex items-center justify-between text-xs text-[#5c6c75] px-1">
+                <span className="font-semibold uppercase tracking-wider">
+                  Items in Cart ({cartItems.length})
+                </span>
+                <span className="font-semibold uppercase tracking-wider">
+                  Quantity & Subtotal
+                </span>
+              </div>
 
+              <div className="space-y-3">
                 {cartItems.map((item) => (
                   <div
                     key={item.productId}
-                    className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-gray-50/50 transition-colors"
+                    className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-gray-200/80 bg-white p-4 shadow-2xs hover:border-gray-300 transition-all"
                   >
                     {/* Item Details */}
-                    <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       {item.image ? (
                         <img
                           src={item.image}
                           alt={item.title}
-                          className="h-16 w-16 shrink-0 rounded-xl border border-gray-200 object-cover bg-white"
+                          className="h-16 w-16 rounded-xl object-cover border border-gray-100 shrink-0 bg-gray-50"
                         />
                       ) : (
-                        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-gray-200 bg-[#f8f9fa] text-[#16135c]">
-                          <ShoppingBag size={24} />
+                        <div className="grid h-16 w-16 place-items-center rounded-xl bg-blue-50 text-[#16135c] shrink-0 font-bold text-base">
+                          {item.title.charAt(0)}
                         </div>
                       )}
 
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-[#16135c] leading-snug truncate">
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          to={`/products/${item.productId}`}
+                          className="text-sm font-bold text-[#16135c] hover:underline line-clamp-1"
+                        >
                           {item.title}
-                        </h3>
-                        <p className="text-xs font-semibold text-brand-700 mt-0.5">
-                          {money(item.pricePaise)} <span className="text-[10px] text-gray-400 font-normal">/ unit</span>
-                        </p>
-                        {item.sellerSlug ? (
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="text-[10px] text-[#889397]">
-                              Seller: <strong className="text-[#5c6c75]">{item.sellerSlug}</strong>
+                        </Link>
+
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-xs font-semibold text-[#21313c]">
+                            {money(item.pricePaise)}
+                            <span className="text-[10px] text-gray-500 font-normal"> / unit</span>
+                          </span>
+
+                          {item.isCustomQuote ? (
+                            <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                              Custom Quote
                             </span>
+                          ) : item.isWholesale ? (
+                            <span className="rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 text-[10px] font-bold text-purple-700">
+                              Wholesale Tier
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {item.sellerSlug && (
+                          <div className="mt-1 flex items-center gap-2 text-[11px] text-[#5c6c75]">
+                            <span>Seller: <strong className="text-gray-700 font-medium">{item.sellerSlug}</strong></span>
+                            <span>•</span>
                             <Link
-                              to={`/chat?seller=${item.sellerSlug}&productId=${item.productId}&productTitle=${encodeURIComponent(item.title)}`}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#16135c] hover:underline"
+                              to={`/chat?sellerId=${encodeURIComponent(item.sellerSlug)}`}
+                              className="inline-flex items-center gap-1 text-[#16135c] hover:underline font-medium text-[10px]"
                             >
-                              <MessageSquare size={11} />
+                              <MessageSquare size={10} />
                               <span>Chat Seller</span>
                             </Link>
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     </div>
 
-                    {/* Quantity Controls & Line Total */}
-                    <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto border-t sm:border-t-0 pt-3 sm:pt-0">
-                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-1 shadow-2xs">
+                    {/* Quantity Stepper & Line Total */}
+                    <div className="flex items-center justify-between sm:justify-end gap-5 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                      {/* Quantity Stepper */}
+                      <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50/60 p-1">
                         <button
                           type="button"
-                          onClick={() => updateCartQuantity(item.productId, item.quantity - 1)}
-                          className="grid h-7 w-7 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-[#16135c] transition-colors cursor-pointer"
-                          aria-label="Decrease quantity"
+                          onClick={() => {
+                            if (item.quantity > 1) {
+                              updateCartQuantity(item.productId, item.quantity - 1);
+                            } else {
+                              removeCartItem(item.productId);
+                            }
+                          }}
+                          className="grid h-7 w-7 place-items-center rounded-lg bg-white text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-200/80 shadow-2xs transition-colors cursor-pointer"
+                          title={item.quantity === 1 ? 'Remove from cart' : 'Decrease quantity'}
                         >
-                          <Minus size={13} />
+                          <Minus size={12} />
                         </button>
-                        <span className="w-8 text-center text-xs font-bold text-[#21313c]">
-                          {item.quantity}
-                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val) && val > 0) {
+                              updateCartQuantity(item.productId, val);
+                            }
+                          }}
+                          className="w-10 text-center text-xs font-bold text-[#16135c] bg-transparent focus:outline-none"
+                        />
+
                         <button
                           type="button"
                           onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}
-                          className="grid h-7 w-7 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-[#16135c] transition-colors cursor-pointer"
-                          aria-label="Increase quantity"
+                          className="grid h-7 w-7 place-items-center rounded-lg bg-white text-gray-600 hover:text-[#16135c] hover:bg-blue-50 border border-gray-200/80 shadow-2xs transition-colors cursor-pointer"
+                          title="Increase quantity"
                         >
-                          <Plus size={13} />
+                          <Plus size={12} />
                         </button>
                       </div>
 
-                      <div className="text-right min-w-[80px]">
+                      {/* Line Subtotal */}
+                      <div className="text-right min-w-[70px]">
                         <span className="text-sm font-bold text-[#16135c]">
                           {money(item.pricePaise * item.quantity)}
                         </span>
                       </div>
 
+                      {/* Delete Action */}
                       <button
                         type="button"
                         onClick={() => {
                           removeCartItem(item.productId);
-                          showToast.info('Item Removed', item.title);
+                          showToast.info('Item Removed', `${item.title} removed from cart.`);
                         }}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
-                        title="Remove item"
+                        className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-1"
+                        title="Delete item"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -340,23 +284,74 @@ export function CartPage() {
               </div>
             </div>
 
-            {/* Right Column: Order Summary & Dynamic Delivery Slot (Span 4) */}
+            {/* Right Column: Order Summary (Span 4) */}
             <div className="lg:col-span-4 space-y-4">
               <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs space-y-4">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-[#16135c] border-b border-gray-100 pb-3">
-                  Order Summary
-                </h2>
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[#16135c]">
+                    Order Summary
+                  </h2>
+                  <span className="text-[11px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {totalUnits} {totalUnits === 1 ? 'unit' : 'units'}
+                  </span>
+                </div>
 
+                {/* Free Delivery Progress Banner */}
+                {isFreeDelivery ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 flex items-center gap-2.5 text-xs text-emerald-900">
+                    <div className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-100 text-emerald-700 shrink-0">
+                      <Sparkles size={15} />
+                    </div>
+                    <div>
+                      <span className="font-bold">FREE Delivery Applied!</span>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Orders above ₹199 qualify for 100% free delivery.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-[#16135c] space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <Truck size={14} className="text-[#16135c]" />
+                        <span>Add {money(freeDeliveryShortfall)} for FREE Delivery</span>
+                      </span>
+                      <span className="text-[10px] text-[#5c6c75]">
+                        {Math.min(100, Math.round((subtotalPaise / FREE_DELIVERY_THRESHOLD_PAISE) * 100))}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-blue-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#16135c] rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, Math.round((subtotalPaise / FREE_DELIVERY_THRESHOLD_PAISE) * 100))}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-[#5c6c75]">
+                      Free delivery on orders above ₹199. Standard fee ₹49 applies below ₹199.
+                    </p>
+                  </div>
+                )}
+
+                {/* Price Breakdown */}
                 <div className="space-y-2.5 text-xs">
                   <div className="flex items-center justify-between text-[#5c6c75]">
-                    <span>Items Subtotal ({cartItems.reduce((a, b) => a + b.quantity, 0)} units)</span>
+                    <span>Items Subtotal</span>
                     <span className="font-semibold text-[#21313c]">{money(subtotalPaise)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-[#5c6c75]">
-                    <span>Scheduled Slot Delivery</span>
-                    <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                      FREE
+                    <span>Scheduled Delivery Fee</span>
+                    <span className="font-semibold">
+                      {isFreeDelivery ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-gray-400 line-through text-[11px]">₹49</span>
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">
+                            FREE
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-[#21313c] font-semibold">{money(STANDARD_DELIVERY_FEE_PAISE)}</span>
+                      )}
                     </span>
                   </div>
 
@@ -366,146 +361,18 @@ export function CartPage() {
                   </div>
                 </div>
 
-                {/* Dynamic Scheduled Delivery Slot Dropdown */}
-                <div
-                  ref={slotDropdownRef}
-                  className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3.5 space-y-2.5 relative"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#16135c]">
-                      <Calendar size={14} className="text-[#16135c]" />
-                      <span>Choose Delivery Slot</span>
+                {/* Minimum Order Warning (if subtotal < 99) */}
+                {!isMinOrderMet && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                    <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Minimum Order: ₹99</span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Your subtotal is {money(subtotalPaise)}. Please add {money(minOrderShortfall)} more to proceed to checkout.
+                      </p>
                     </div>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.2 rounded-full border border-emerald-200">
-                      Guaranteed
-                    </span>
                   </div>
-
-                  {/* Dynamic Dropdown Trigger Button */}
-                  <button
-                    type="button"
-                    onClick={() => setIsSlotDropdownOpen(!isSlotDropdownOpen)}
-                    className="w-full text-left rounded-xl border border-blue-200 bg-white p-2.5 hover:border-[#16135c] shadow-2xs transition-all flex items-center justify-between gap-2.5 cursor-pointer group"
-                    title="Click to update delivery slot"
-                  >
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#16135c] shrink-0 mt-0.5 group-hover:bg-[#16135c] group-hover:text-white transition-colors">
-                        <Clock size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-[#16135c]">
-                            {selectedSlot.dayLabel} ({selectedSlot.dateShort})
-                          </span>
-                          <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border ${selectedSlot.badgeColor}`}>
-                            {selectedSlot.badge}
-                          </span>
-                        </div>
-                        <p className="text-[11px] font-medium text-[#5c6c75] truncate mt-0.5">
-                          {selectedSlot.timeRange} • {selectedSlot.period}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-xs font-bold text-[#16135c] shrink-0">
-                      <span className="text-[11px] underline sm:no-underline">
-                        {isSlotDropdownOpen ? 'Close' : 'Update'}
-                      </span>
-                      <ChevronDown
-                        size={14}
-                        className={`transition-transform duration-200 ${isSlotDropdownOpen ? 'rotate-180 text-[#16135c]' : 'text-gray-400'}`}
-                      />
-                    </div>
-                  </button>
-
-                  {/* Dynamic Schedule Update Panel */}
-                  {isSlotDropdownOpen ? (
-                    <div className="rounded-xl border border-blue-200 bg-white p-3 space-y-3 shadow-lg animate-in fade-in-50 duration-150">
-                      {/* Day Selector Tabs */}
-                      <div className="grid grid-cols-3 gap-1 p-1 bg-gray-100/90 rounded-lg">
-                        {deliveryDays.map((day) => {
-                          const isActive = activeDayOffset === day.offset;
-                          return (
-                            <button
-                              key={day.offset}
-                              type="button"
-                              onClick={() => setActiveDayOffset(day.offset)}
-                              className={`rounded-md py-1.5 px-1 text-center transition-all cursor-pointer ${
-                                isActive
-                                  ? 'bg-[#16135c] text-white font-bold shadow-2xs'
-                                  : 'text-[#5c6c75] hover:text-[#16135c] font-medium'
-                              }`}
-                            >
-                              <span className="block text-[11px] leading-tight truncate">{day.dayLabel}</span>
-                              <span className={`block text-[10px] ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>
-                                {day.dateShort}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Slot Options for Active Day */}
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto buyer-scrollbar">
-                        {currentDaySlots.map((slot) => {
-                          const isSelected = selectedSlotId === slot.id;
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedSlotId(slot.id);
-                                showToast.info('Delivery Slot Updated', slot.displayLabel);
-                              }}
-                              className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                                isSelected
-                                  ? 'border-[#16135c] bg-blue-50/70 shadow-2xs'
-                                  : 'border-gray-200 hover:border-gray-300 bg-white'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div
-                                  className={`grid h-5 w-5 place-items-center rounded-full border text-xs shrink-0 ${
-                                    isSelected
-                                      ? 'border-[#16135c] bg-[#16135c] text-white'
-                                      : 'border-gray-300 text-transparent'
-                                  }`}
-                                >
-                                  <Check size={11} strokeWidth={3} />
-                                </div>
-                                <div>
-                                  <div className="text-xs font-bold text-[#16135c]">
-                                    {slot.timeRange}
-                                  </div>
-                                  <div className="text-[10px] text-[#5c6c75]">
-                                    {slot.period} Window
-                                  </div>
-                                </div>
-                              </div>
-
-                              <span className={`text-[9px] font-semibold px-2 py-0.5 rounded border shrink-0 ${slot.badgeColor}`}>
-                                {slot.badge}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Confirm & Close Schedule Button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsSlotDropdownOpen(false);
-                          showToast.success('Schedule Slot Updated', selectedSlot.displayLabel);
-                        }}
-                        className="w-full inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-[#16135c] hover:bg-[#12104b] text-white text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-                      >
-                        <CheckCircle2 size={13} />
-                        <span>Confirm Schedule Slot</span>
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+                )}
 
                 {/* Total Line */}
                 <div className="border-t border-gray-100 pt-3 flex items-baseline justify-between">
@@ -517,15 +384,30 @@ export function CartPage() {
                 <button
                   type="button"
                   onClick={handleCheckout}
-                  disabled={isCheckingOut}
-                  className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#16135c] hover:bg-[#12104b] text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-60"
+                  disabled={isCheckingOut || cartItems.length === 0 || !isMinOrderMet}
+                  className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#16135c] hover:bg-[#12104b] text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 size={16} />
-                  <span>{isCheckingOut ? 'Processing Order...' : 'Proceed to Checkout'}</span>
+                  <span>
+                    {!isMinOrderMet
+                      ? `Minimum Order ₹99 Required (Add ${money(minOrderShortfall)})`
+                      : isCheckingOut
+                        ? 'Processing Order...'
+                        : !isAuthenticated
+                          ? 'Sign In to Proceed to Checkout'
+                          : 'Proceed to Checkout'}
+                  </span>
                 </button>
 
+                {!isAuthenticated && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-800 flex items-center gap-2">
+                    <span className="font-semibold">Sign in required:</span>
+                    <span>You must be signed in to complete checkout and place an order.</span>
+                  </div>
+                )}
+
                 <p className="text-[10px] text-center text-[#889397]">
-                  By placing your order, you agree to HAAT&apos;s Terms of Service and Scheduled Delivery policies.
+                  Delivery slot and shipping address will be confirmed on the checkout page.
                 </p>
               </div>
 
@@ -537,7 +419,7 @@ export function CartPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock size={16} className="text-[#16135c] shrink-0" />
-                  <span>Guaranteed delivery in your chosen slot</span>
+                  <span>Scheduled delivery window selected at checkout</span>
                 </div>
               </div>
             </div>

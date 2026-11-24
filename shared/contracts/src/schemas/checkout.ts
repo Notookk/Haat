@@ -19,7 +19,7 @@ export const shippingAddressInputSchema = z.object({
 
 export const checkoutInitiateSchema = z.object({
   items: z.array(checkoutItemSchema).min(1, 'At least one item required for checkout'),
-  deliverySlotId: objectIdSchema,
+  deliverySlotId: z.string().optional().nullable(),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Delivery date must be YYYY-MM-DD'),
   shippingAddress: shippingAddressInputSchema,
   idempotencyKey: z.string().trim().min(8, 'Valid idempotency key required'),

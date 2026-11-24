@@ -41,7 +41,7 @@ const listOrdersHandler: RequestHandler = async (req, res) => {
     Order.find(trustedQuery)
       .populate('buyerId', 'fullName email phoneNumber')
       .populate('sellerId', 'storeName storeSlug')
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1, _id: 1 })
       .skip(skip)
       .limit(limit)
       .lean(),

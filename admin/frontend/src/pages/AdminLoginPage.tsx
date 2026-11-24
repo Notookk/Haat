@@ -11,11 +11,17 @@ const adminLoginSchema = z.object({
   identifier: z
     .string()
     .trim()
-    .min(3, 'Admin email or phone number is required')
-    .refine((val) => val.includes('@') || /^\d{10}$/.test(val), {
-      message: 'Enter a valid administrator email or 10-digit phone number',
-    }),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+    .min(1, 'Admin email, username, or phone number is required')
+    .refine(
+      (val) =>
+        val.toLowerCase() === 'admin' ||
+        val.includes('@') ||
+        val.replace(/\D/g, '').length >= 10,
+      {
+        message: 'Enter a valid administrator email, username (admin), or 10-digit phone number',
+      },
+    ),
+  password: z.string().min(1, 'Password is required'),
 });
 
 type AdminLoginFormValues = z.infer<typeof adminLoginSchema>;
@@ -24,22 +30,26 @@ export function AdminLoginPage() {
   const { login } = useAdminAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const form = useForm<AdminLoginFormValues>({
     resolver: zodResolver(adminLoginSchema),
     defaultValues: {
-      identifier: '',
+      identifier: 'admin@haat.com',
       password: '',
     },
   });
 
   const onSubmit = async (values: AdminLoginFormValues) => {
+    setAuthError(null);
     try {
       await login(values);
       showToast.success('Signed in successfully', 'Welcome to HAAT Governance');
       navigate('/', { replace: true });
     } catch (err) {
-      showToast.error('Authentication failed', errorMessage(err));
+      const msg = errorMessage(err);
+      setAuthError(msg);
+      showToast.error('Authentication failed', msg);
     }
   };
 
@@ -71,6 +81,33 @@ export function AdminLoginPage() {
         {/* Login Panel */}
         <Panel className="p-6 sm:p-8 shadow-card border border-line bg-surface">
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            {/* Quick Demo Credentials Assistant */}
+            <div className="rounded-lg bg-blue-50/70 border border-blue-200/80 p-3 text-xs text-blue-900 flex items-center justify-between gap-2">
+              <div className="space-y-0.5">
+                <span className="font-semibold block text-blue-950">Default Admin Credentials</span>
+                <p className="font-mono text-[11px] text-blue-800">
+                  admin@haat.com • admin@123456
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  form.setValue('identifier', 'admin@haat.com', { shouldValidate: true });
+                  form.setValue('password', 'admin@123456', { shouldValidate: true });
+                  setAuthError(null);
+                }}
+                className="shrink-0 px-2.5 py-1 text-xs font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded shadow-xs transition-colors cursor-pointer"
+              >
+                Auto-fill
+              </button>
+            </div>
+
+            {authError && (
+              <div className="rounded-lg bg-danger-bg/10 border border-danger-fg/30 p-3 text-xs text-danger-fg font-medium">
+                {authError}
+              </div>
+            )}
+
             {/* Email / Identifier Field */}
             <div>
               <label htmlFor="identifier" className="block text-label font-semibold text-ink-800">

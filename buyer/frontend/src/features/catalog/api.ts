@@ -24,7 +24,9 @@ export function useCategoryTree() {
       const result = await api.get<{ categories: CategoryNode[] }>('/categories', signal);
       return result.data.categories;
     },
-    staleTime: 5 * 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -6,6 +6,7 @@ import {
   SlotCounter,
   Cart,
   AppError,
+  realtimeEventBus,
 } from '@haat/shared-backend';
 import {
   resolveUnitPricePaise,
@@ -36,7 +37,7 @@ export async function initiateCheckout(buyerId: string, input: CheckoutInitiateI
   const sellerId = String(firstProduct.sellerId);
 
   // 3. Revalidate stock, price tiers, and MOQ/multiples for each line item
-  let totalAmountPaise = 0;
+  let itemsSubtotalPaise = 0;
   const snapshotItems = [];
 
   for (const item of input.items) {
@@ -89,7 +90,7 @@ export async function initiateCheckout(buyerId: string, input: CheckoutInitiateI
       item.quantity,
     );
     const lineTotalPaise = unitPricePaise * item.quantity;
-    totalAmountPaise += lineTotalPaise;
+    itemsSubtotalPaise += lineTotalPaise;
 
     snapshotItems.push({
       productId: product._id,
@@ -103,47 +104,62 @@ export async function initiateCheckout(buyerId: string, input: CheckoutInitiateI
     });
   }
 
-  // 4. Resolve delivery slot and enforce atomic capacity reservation
-  const slotObjectId = new Types.ObjectId(input.deliverySlotId);
-  const sellerObjectId = new Types.ObjectId(sellerId);
+  // Minimum order is ₹99 (9900 paise) and order above ₹199 (19900 paise) qualifies for free delivery
+  const MIN_ORDER_PAISE = 9900;
+  const FREE_DELIVERY_THRESHOLD_PAISE = 19900;
+  const STANDARD_DELIVERY_FEE_PAISE = 4900;
 
-  let slot = await DeliverySlot.findOne({ _id: slotObjectId, sellerId: sellerObjectId }).lean();
-  let maxCapacity = 20;
-  let startTime = '09:00';
-  let endTime = '12:00';
-  let slotLabel = 'Standard Delivery (9 AM – 12 PM)';
-
-  if (slot) {
-    maxCapacity = (slot as any).maxCapacity ?? (slot as any).capacity ?? 20;
-    startTime = slot.startTime;
-    endTime = slot.endTime;
-    slotLabel = `${slot.startTime} – ${slot.endTime}`;
+  if (itemsSubtotalPaise < MIN_ORDER_PAISE) {
+    throw AppError.badRequest('Minimum order value is ₹99. Please add more items to checkout.');
   }
 
-  // Ensure slot counter exists
-  await SlotCounter.findOneAndUpdate(
-    { sellerId: sellerObjectId, slotId: slotObjectId, date: input.deliveryDate },
-    { $setOnInsert: { booked: 0, maxCapacity } },
-    { upsert: true },
-  );
+  const deliveryFeePaise = itemsSubtotalPaise >= FREE_DELIVERY_THRESHOLD_PAISE ? 0 : STANDARD_DELIVERY_FEE_PAISE;
+  const totalAmountPaise = itemsSubtotalPaise + deliveryFeePaise;
 
-  // Atomic capacity decrement
-  const reservedCounter = await SlotCounter.findOneAndUpdate(
-    {
-      sellerId: sellerObjectId,
-      slotId: slotObjectId,
-      date: input.deliveryDate,
-      $expr: { $lt: ['$booked', '$maxCapacity'] },
-    },
-    { $inc: { booked: 1 } },
-    { new: true },
-  );
+  // 4. Resolve delivery slot and enforce atomic capacity reservation
+  const sellerObjectId = new Types.ObjectId(sellerId);
+  let slotObjectId: Types.ObjectId | null = null;
+  let startTime: string | null = null;
+  let endTime: string | null = null;
+  let slotLabel = 'Delivery will happen shortly';
 
-  if (!reservedCounter) {
-    throw AppError.conflict(
-      'The selected delivery slot is fully booked. Please select another slot.',
-      'SLOT_OVERBOOKED',
-    );
+  if (input.deliverySlotId && Types.ObjectId.isValid(input.deliverySlotId)) {
+    const candidateSlotId = new Types.ObjectId(input.deliverySlotId);
+
+    const slot = await DeliverySlot.findOne({ _id: candidateSlotId, sellerId: sellerObjectId }).lean();
+    if (slot) {
+      slotObjectId = candidateSlotId;
+      const maxCapacity = (slot as any).maxCapacity ?? (slot as any).capacity ?? 20;
+      startTime = slot.startTime;
+      endTime = slot.endTime;
+      slotLabel = `${slot.startTime} – ${slot.endTime}`;
+
+      // Ensure slot counter exists
+      await SlotCounter.findOneAndUpdate(
+        { sellerId: sellerObjectId, slotId: slotObjectId, date: input.deliveryDate },
+        { $setOnInsert: { booked: 0, maxCapacity } },
+        { upsert: true },
+      );
+
+      // Atomic capacity decrement
+      const reservedCounter = await SlotCounter.findOneAndUpdate(
+        {
+          sellerId: sellerObjectId,
+          slotId: slotObjectId,
+          date: input.deliveryDate,
+          $expr: { $lt: ['$booked', '$maxCapacity'] },
+        },
+        { $inc: { booked: 1 } },
+        { new: true },
+      );
+
+      if (!reservedCounter) {
+        throw AppError.conflict(
+          'The selected delivery slot is fully booked. Please select another slot.',
+          'SLOT_OVERBOOKED',
+        );
+      }
+    }
   }
 
   // 5. Atomic stock decrement for each line item
@@ -175,7 +191,7 @@ export async function initiateCheckout(buyerId: string, input: CheckoutInitiateI
     sellerId: sellerObjectId,
     items: snapshotItems,
     totalAmountPaise,
-    deliveryFeePaise: 0,
+    deliveryFeePaise,
     currency: 'INR',
     paymentStatus: 'PENDING',
     fulfilmentStatus: 'PENDING_CONFIRMATION',
@@ -211,6 +227,19 @@ export async function initiateCheckout(buyerId: string, input: CheckoutInitiateI
       },
     },
   );
+
+  // 9. Broadcast real-time order creation across platform (Seller & Admin)
+  void realtimeEventBus.publishOrderCreated({
+    orderId: String(order._id),
+    orderNumber: order.orderNumber,
+    sellerId: String(order.sellerId),
+    buyerId: String(order.buyerId),
+    totalAmountPaise: order.totalAmountPaise,
+    deliveryDate: order.deliveryDate,
+    fulfilmentStatus: order.fulfilmentStatus,
+    paymentStatus: order.paymentStatus,
+    createdAt: (order as any).createdAt || new Date().toISOString(),
+  });
 
   return order.toObject();
 }

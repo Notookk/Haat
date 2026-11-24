@@ -3,6 +3,7 @@ import {
   Order,
   SellerProfile,
   AppError,
+  realtimeEventBus,
 } from '@haat/shared-backend';
 import {
   type FulfilmentStatus,
@@ -28,7 +29,7 @@ const ALLOWED_ORDER_TRANSITIONS: Record<FulfilmentStatus, readonly FulfilmentSta
 export async function listBuyerOrders(buyerId: string) {
   return Order.find({ buyerId: new Types.ObjectId(buyerId) })
     .populate('sellerId', 'storeName storeSlug logoUrl')
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .lean();
 }
 
@@ -36,6 +37,7 @@ export async function getOrderDetails(orderId: string, userId: string, role?: st
   const order = await Order.findById(orderId)
     .populate('sellerId', 'storeName storeSlug gstin pan logoUrl servicePincodes')
     .populate('buyerId', 'phoneNumber email name')
+    .populate('items.productId', 'images title retailPricePaise')
     .lean();
 
   if (!order) {
@@ -63,7 +65,7 @@ export async function listSellerOrders(userId: string) {
 
   return Order.find({ sellerId: seller._id })
     .populate('buyerId', 'name phoneNumber email')
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .lean();
 }
 
@@ -136,6 +138,17 @@ export async function cancelBuyerOrder(buyerId: string, orderId: string, input: 
   });
 
   await order.save();
+
+  void realtimeEventBus.publishOrderStatusChanged({
+    orderId: String(order._id),
+    orderNumber: order.orderNumber,
+    sellerId: String(order.sellerId),
+    buyerId: String(order.buyerId),
+    previousStatus: currentStatus,
+    newStatus: 'CANCELLED',
+    at: new Date().toISOString(),
+  });
+
   return order.toObject();
 }
 
@@ -172,6 +185,7 @@ export async function getOrderReceipt(orderId: string, userId: string, role?: st
       date: order.deliveryDate,
       slot: order.deliverySlot?.label || `${order.deliverySlot?.startTime} – ${order.deliverySlot?.endTime}`,
     },
+    paymentMethod: order.paymentMethod || 'ONLINE',
     paymentStatus: order.paymentStatus,
     fulfilmentStatus: order.fulfilmentStatus,
   };

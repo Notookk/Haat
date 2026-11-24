@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   Star,
   Heart,
@@ -11,7 +12,6 @@ import {
   RefreshCw,
   Check,
   Copy,
-  Store,
   ChevronRight,
   Minus,
   Plus,
@@ -22,6 +22,7 @@ import {
   FileText,
 } from 'lucide-react';
 import {
+  api,
   Badge,
   EmptyState,
   ErrorState,
@@ -49,6 +50,7 @@ export function ProductPage() {
   const product = usePublicProduct(slug);
   const { status, user } = useAuth();
   const isAuthenticated = status === 'authenticated' && Boolean(user);
+  const canInteract = isAuthenticated;
 
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -192,7 +194,11 @@ export function ProductPage() {
   };
 
   const handleOpenChat = () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      showToast.info('Sign In Required', 'Please sign in to chat with sellers.');
+      navigate(`/login?redirect=/product/${slug}`);
+      return;
+    }
     const params = new URLSearchParams();
     if (item.sellerSlug) params.set('seller', item.sellerSlug);
     if (item.sellerName) params.set('sellerName', item.sellerName);
@@ -202,6 +208,15 @@ export function ProductPage() {
     if (primary?.url) params.set('productImage', primary.url);
     if (item.retailPricePaise) params.set('price', String(item.retailPricePaise));
     navigate(`/chat?${params.toString()}`);
+  };
+
+  const handleOpenRfq = () => {
+    if (!isAuthenticated) {
+      showToast.info('Sign In Required', 'Please sign in to request custom quotes.');
+      navigate(`/login?redirect=/product/${slug}`);
+      return;
+    }
+    setIsRfqOpen(true);
   };
 
   const isWishlisted = isProductWishlisted(item.id);
@@ -375,15 +390,6 @@ export function ProductPage() {
                   </span>
                 ) : null}
               </div>
-
-              <Link
-                to={`/store/${item.sellerSlug}`}
-                className="group flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#16135c] transition-colors"
-              >
-                <Store size={14} className="text-gray-400 group-hover:text-[#16135c]" />
-                <span>By {item.sellerName}</span>
-                <ShieldCheck size={14} className="text-emerald-600" />
-              </Link>
             </div>
 
             {/* Product Title */}
@@ -545,42 +551,58 @@ export function ProductPage() {
                 </button>
               </div>
 
-              {/* Chat with Seller Button */}
-              <button
-                type="button"
-                onClick={handleOpenChat}
-                disabled={!isAuthenticated}
-                className={`w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl font-bold text-xs shadow-2xs transition-colors ${
-                  isAuthenticated
-                    ? 'border-2 border-[#16135c]/30 bg-white text-[#16135c] hover:bg-[#16135c] hover:text-white cursor-pointer'
-                    : 'border-2 border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
-                }`}
-                title={isAuthenticated ? `Chat with ${item.sellerName}` : 'Sign in to chat with sellers'}
-              >
-                <MessageCircle size={16} />
-                <span>
-                  {isAuthenticated
-                    ? `Chat with ${item.sellerName} About This Product`
-                    : 'Sign in to chat with seller'}
-                </span>
-              </button>
-
-              {/* Request Custom Quotation (RFQ) Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    navigate('/login');
-                    return;
+              {/* Chat & RFQ on a single line — accessible to authenticated users */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Chat with Seller Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenChat}
+                  className={`inline-flex h-11 items-center justify-center gap-1.5 rounded-xl font-bold text-xs shadow-2xs transition-colors px-2 text-center cursor-pointer ${
+                    canInteract
+                      ? 'border-2 border-[#16135c]/30 bg-white text-[#16135c] hover:bg-[#16135c] hover:text-white'
+                      : 'border-2 border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                  }`}
+                  title={
+                    isAuthenticated
+                      ? 'Chat with seller about this product'
+                      : 'Sign in to chat with sellers'
                   }
-                  setIsRfqOpen(true);
-                }}
-                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0AAD0A] bg-emerald-50/50 text-[#0AAD0A] font-bold text-xs shadow-2xs hover:bg-[#0AAD0A] hover:text-white transition-colors cursor-pointer"
-                title="Request wholesale quotation or bulk pricing from merchant"
-              >
-                <FileText size={16} />
-                <span>Request Custom Quote (RFQ)</span>
-              </button>
+                >
+                  <MessageCircle size={15} className="shrink-0" />
+                  <span className="truncate">
+                    {isAuthenticated ? 'Chat with Seller' : 'Sign in to chat'}
+                  </span>
+                </button>
+
+                {/* Request Custom Quotation (RFQ) Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenRfq}
+                  className={`inline-flex h-11 items-center justify-center gap-1.5 rounded-xl font-bold text-xs shadow-2xs transition-colors px-2 text-center cursor-pointer ${
+                    canInteract
+                      ? 'border border-[#0AAD0A] bg-emerald-50/50 text-[#0AAD0A] hover:bg-[#0AAD0A] hover:text-white'
+                      : 'border-2 border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                  }`}
+                  title={
+                    isAuthenticated
+                      ? 'Request wholesale quotation or bulk pricing from merchant'
+                      : 'Sign in to request custom quotes'
+                  }
+                >
+                  <FileText size={15} className="shrink-0" />
+                  <span className="truncate">
+                    {isAuthenticated ? 'Request Quote (RFQ)' : 'Sign in for quote'}
+                  </span>
+                </button>
+              </div>
+
+              {!canInteract && (
+                <p className="text-[11px] text-gray-400 text-center -mt-1">
+                  {!isAuthenticated
+                    ? 'Sign in to unlock direct chat and quotation requests with sellers.'
+                    : 'Place your first order to unlock seller chat and custom quotations.'}
+                </p>
+              )}
             </div>
 
             {/* Wholesale Pricing Tiers Banner (if configured) */}
@@ -692,17 +714,6 @@ export function ProductPage() {
                       <dd className="col-span-2 font-medium text-[#21313c]">{item.brand}</dd>
                     </div>
                   ) : null}
-                  <div className="grid grid-cols-3 py-2.5">
-                    <dt className="font-semibold text-gray-500">Merchant Store</dt>
-                    <dd className="col-span-2">
-                      <Link
-                        to={`/store/${item.sellerSlug}`}
-                        className="font-bold text-[#16135c] hover:underline"
-                      >
-                        {item.sellerName}
-                      </Link>
-                    </dd>
-                  </div>
                   <div className="grid grid-cols-3 py-2.5">
                     <dt className="font-semibold text-gray-500">Total Stock Available</dt>
                     <dd className="col-span-2 font-bold text-emerald-700">{totalUnits} units</dd>

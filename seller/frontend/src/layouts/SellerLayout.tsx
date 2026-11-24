@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   LayoutDashboard,
@@ -14,10 +15,9 @@ import {
   ChevronDown,
   ShieldCheck,
   MessageSquare,
-  FileText,
 } from 'lucide-react';
 import { useSellerAuth } from '../features/auth/SellerAuthProvider';
-import { Badge, showToast } from '@haat/shared-frontend';
+import { api, Badge, showToast, createSocketClient } from '@haat/shared-frontend';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -25,9 +25,8 @@ const navItems = [
   { to: '/products', label: 'Products', icon: Package, end: false },
   { to: '/categories', label: 'Categories', icon: FolderTree, end: false },
   { to: '/orders', label: 'Orders', icon: ShoppingBag, end: false },
-  { to: '/rfq', label: 'RFQ & Quotes', icon: FileText, end: false },
   { to: '/delivery-slots', label: 'Delivery Slots', icon: Clock, end: false },
-  { to: '/chat', label: 'Chat', icon: MessageSquare, end: false },
+  { to: '/chat', label: 'Customer Chat', icon: MessageSquare, end: false },
   { to: '/revenue', label: 'Revenue', icon: TrendingUp, end: false },
   { to: '/settings', label: 'Account Settings', icon: Settings, end: false },
 ];
@@ -35,8 +34,41 @@ const navItems = [
 export function SellerLayout() {
   const { user, seller, logout } = useSellerAuth();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Live unread message count
+  const { data: unreadChatCount = 0 } = useQuery({
+    queryKey: ['seller', 'chat', 'unread-count'],
+    queryFn: async () => {
+      const res = await api.get<{ unreadCount: number }>('/chat/unread-count');
+      return res.data?.unreadCount || 0;
+    },
+    enabled: Boolean(seller),
+    refetchInterval: 3000,
+  });
+
+  // Real-time socket sync for incoming messages
+  useEffect(() => {
+    if (!seller?.storeSlug) return;
+    const socket = createSocketClient({
+      url: window.location.origin.includes('localhost') ? 'http://localhost:7100' : undefined,
+    });
+
+    socket.emit('join_chat', { sellerSlug: seller.storeSlug });
+
+    const handleNewMessage = () => {
+      void queryClient.invalidateQueries({ queryKey: ['seller', 'chat', 'unread-count'] });
+    };
+
+    socket.on('new_message', handleNewMessage);
+
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.disconnect();
+    };
+  }, [seller?.storeSlug, queryClient]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -100,7 +132,12 @@ export function SellerLayout() {
               }
             >
               <item.icon className="h-4 w-4 shrink-0 text-brand-600" />
-              <span>{item.label}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.to === '/chat' && unreadChatCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0AAD0A] px-1.5 text-[10px] font-bold text-white leading-none shadow-2xs">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -129,7 +166,7 @@ export function SellerLayout() {
 
         {/* Right: Customer Chat & Seller Profile Dropdown */}
         <div className="flex items-center gap-3">
-          {/* Chat Icon Button */}
+          {/* Chat Icon Button with Unread Badge */}
           <Link
             to="/chat"
             className={clsx(
@@ -138,10 +175,15 @@ export function SellerLayout() {
                 ? 'border-brand-600 bg-brand-50 text-brand-700'
                 : 'text-ink-600 hover:text-brand-700 hover:bg-surface-sunken',
             )}
-            title="Chat"
-            aria-label="Chat"
+            title={unreadChatCount > 0 ? `${unreadChatCount} unread message${unreadChatCount === 1 ? '' : 's'}` : 'Customer Chat'}
+            aria-label="Customer Chat"
           >
             <MessageSquare className="h-4.5 w-4.5" />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0AAD0A] px-1 text-[10px] font-bold text-white leading-none shadow-xs">
+                {unreadChatCount > 99 ? '99+' : unreadChatCount}
+              </span>
+            )}
           </Link>
 
           {/* Profile Menu Dropdown */}

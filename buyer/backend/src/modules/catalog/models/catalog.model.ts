@@ -27,6 +27,6 @@ export const catalogModel = {
   },
 
   async findActiveCategories() {
-    return Category.find({ isActive: true }).sort({ depth: 1, displayOrder: 1, name: 1 }).lean();
+    return Category.find({ isActive: true }).sort({ depth: 1, createdAt: 1, _id: 1 }).lean();
   },
 };

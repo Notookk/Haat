@@ -9,9 +9,18 @@ import {
   realtimeEventBus,
 } from '@haat/shared-backend';
 import { createAdminApp } from './app';
+import { bootstrapAdminUser } from './modules/auth/services/bootstrap.service';
 
 async function bootstrap(): Promise<void> {
   await connectDatabase();
+
+  // Guarantee bootstrap admin exists and credentials match environment configuration
+  try {
+    const adminResult = await bootstrapAdminUser();
+    logger.info('admin_bootstrap_ready', { email: adminResult.email, created: adminResult.created });
+  } catch (error) {
+    logger.error('admin_bootstrap_error', { message: error instanceof Error ? error.message : String(error) });
+  }
 
   const app = createAdminApp();
   const server = createServer(app);

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import useEmblaCarousel from 'embla-carousel-react';
 import { ArrowRight, PackageSearch, Clock, ShieldCheck, Tag, RefreshCw, ChevronLeft, ChevronRight, FolderTree } from 'lucide-react';
 import {
   Button,
@@ -91,22 +92,89 @@ function subtreeCount(node: CategoryNode): number {
 
 export function HomePage() {
   const [activeSlide, setActiveSlide] = useState(0);
-  const categoryScrollRef = useRef<HTMLDivElement>(null);
   const categories = useCategoryTree();
   const products = usePublicProducts({ limit: 10, sort: 'newest' });
 
-  const roots = categories.data ?? [];
+  const rawRoots = categories.data ?? [];
+  const roots = useMemo(() => {
+    return [...rawRoots].sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return a.id.localeCompare(b.id);
+    });
+  }, [rawRoots]);
+
   const items = products.data?.items ?? [];
 
-  const scrollCategories = (direction: 'left' | 'right') => {
-    if (categoryScrollRef.current) {
-      const scrollAmount = 320;
-      categoryScrollRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
+  // Embla Carousel with momentum mouse drag-to-scroll (dragFree: true)
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: 'start',
+    dragFree: true,
+    containScroll: 'trimSnaps',
+  });
+
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+  const isDraggingRef = useRef(false);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    const onPointerDown = () => {
+      isDraggingRef.current = false;
+    };
+    const onScroll = () => {
+      isDraggingRef.current = true;
+    };
+
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+    emblaApi.on('pointerDown', onPointerDown);
+    emblaApi.on('scroll', onScroll);
+
+    return () => {
+      emblaApi.off('select', onSelect);
+      emblaApi.off('reInit', onSelect);
+      emblaApi.off('pointerDown', onPointerDown);
+      emblaApi.off('scroll', onScroll);
+    };
+  }, [emblaApi, onSelect]);
+
+  useEffect(() => {
+    if (emblaApi) {
+      emblaApi.reInit();
     }
-  };
+  }, [emblaApi, roots]);
+
+  const scrollCategories = useCallback(
+    (direction: 'left' | 'right') => {
+      if (!emblaApi) return;
+      if (direction === 'left') {
+        emblaApi.scrollPrev();
+      } else {
+        emblaApi.scrollNext();
+      }
+    },
+    [emblaApi],
+  );
+
+  const handleCardClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Prevent navigation if the user dragged the carousel
+      if (isDraggingRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    [],
+  );
 
   // Auto-advance slides every 6 seconds
   useEffect(() => {
@@ -179,7 +247,12 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => scrollCategories('left')}
-              className="grid h-9 w-9 place-items-center rounded-full border border-[#dfe2e1] bg-white text-[#5c6c75] hover:border-[#16135c] hover:bg-[#f8f9fa] hover:text-[#16135c] transition-colors cursor-pointer shadow-2xs"
+              disabled={!canScrollPrev}
+              className={`grid h-9 w-9 place-items-center rounded-full border border-[#dfe2e1] bg-white text-[#5c6c75] transition-colors shadow-2xs ${
+                canScrollPrev
+                  ? 'hover:border-[#16135c] hover:bg-[#f8f9fa] hover:text-[#16135c] cursor-pointer'
+                  : 'opacity-40 cursor-not-allowed'
+              }`}
               aria-label="Previous categories"
             >
               <ChevronLeft size={18} />
@@ -187,7 +260,12 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => scrollCategories('right')}
-              className="grid h-9 w-9 place-items-center rounded-full border border-[#dfe2e1] bg-white text-[#5c6c75] hover:border-[#16135c] hover:bg-[#f8f9fa] hover:text-[#16135c] transition-colors cursor-pointer shadow-2xs"
+              disabled={!canScrollNext}
+              className={`grid h-9 w-9 place-items-center rounded-full border border-[#dfe2e1] bg-white text-[#5c6c75] transition-colors shadow-2xs ${
+                canScrollNext
+                  ? 'hover:border-[#16135c] hover:bg-[#f8f9fa] hover:text-[#16135c] cursor-pointer'
+                  : 'opacity-40 cursor-not-allowed'
+              }`}
               aria-label="Next categories"
             >
               <ChevronRight size={18} />
@@ -201,6 +279,8 @@ export function HomePage() {
               <SkeletonBlock key={i} className="h-52 w-44 sm:w-48 shrink-0 rounded-xl" />
             ))}
           </div>
+        ) : categories.isError ? (
+          <ErrorState message={errorMessage(categories.error)} onRetry={() => void categories.refetch()} />
         ) : roots.length === 0 ? (
           <EmptyState
             icon={<FolderTree size={20} className="text-[#889397]" aria-hidden="true" />}
@@ -209,44 +289,49 @@ export function HomePage() {
           />
         ) : (
           <div
-            ref={categoryScrollRef}
-            className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            ref={emblaRef}
+            className="overflow-hidden cursor-grab active:cursor-grabbing select-none pb-4"
           >
-            {roots.map((cat) => {
-              const matchedPreset = FEATURED_CATEGORIES.find(
-                (p) =>
-                  p.slug === cat.slug ||
-                  p.name.toLowerCase().includes(cat.name.toLowerCase().split(' ')[0]) ||
-                  cat.name.toLowerCase().includes(p.name.toLowerCase().split(' ')[0]),
-              );
-              const imageSrc = cat.imageUrl || matchedPreset?.image || '/brand/haat-mark-128.png';
+            <div className="flex gap-4">
+              {roots.map((cat) => {
+                const matchedPreset = FEATURED_CATEGORIES.find(
+                  (p) =>
+                    p.slug === cat.slug ||
+                    p.name.toLowerCase().includes(cat.name.toLowerCase().split(' ')[0]) ||
+                    cat.name.toLowerCase().includes(p.name.toLowerCase().split(' ')[0]),
+                );
+                const imageSrc = cat.imageUrl || matchedPreset?.image || '/brand/haat-mark-128.png';
 
-              return (
-                <Link
-                  key={cat.id}
-                  to={`/catalogue?category=${encodeURIComponent(cat.slug)}`}
-                  className="group flex flex-col items-center justify-between rounded-xl border border-[#dfe2e1] bg-white p-5 text-center transition-all duration-200 hover:border-[#16135c] hover:shadow-md shrink-0 w-44 sm:w-48 h-52 cursor-pointer"
-                >
-                  <div className="h-28 w-full flex items-center justify-center overflow-hidden">
-                    <img
-                      src={imageSrc}
-                      alt={cat.name}
-                      className="max-h-24 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
-                      loading="lazy"
-                    />
+                return (
+                  <div key={cat.id} className="shrink-0 w-44 sm:w-48">
+                    <Link
+                      to={`/catalogue?category=${encodeURIComponent(cat.slug)}`}
+                      onClick={handleCardClick}
+                      draggable={false}
+                      className="group flex flex-col items-center justify-between rounded-xl border border-[#dfe2e1] bg-white p-5 text-center transition-all duration-200 hover:border-[#16135c] hover:shadow-md h-52 cursor-pointer w-full select-none"
+                    >
+                      <div className="h-28 w-full flex items-center justify-center overflow-hidden pointer-events-none">
+                        <img
+                          src={imageSrc}
+                          alt={cat.name}
+                          draggable={false}
+                          className="max-h-24 w-auto object-contain transition-transform duration-200 group-hover:scale-105 pointer-events-none select-none"
+                          loading="lazy"
+                        />
+                      </div>
+                      <div className="pointer-events-none select-none">
+                        <span className="mt-3 text-sm font-semibold text-[#21313c] group-hover:text-[#16135c] transition-colors leading-snug line-clamp-2">
+                          {cat.name}
+                        </span>
+                        <span className="text-[11px] text-[#889397]">
+                          {subtreeCount(cat)} product{subtreeCount(cat) === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </Link>
                   </div>
-                  <div>
-                    <span className="mt-3 text-sm font-semibold text-[#21313c] group-hover:text-[#16135c] transition-colors leading-snug line-clamp-2">
-                      {cat.name}
-                    </span>
-                    <span className="text-[11px] text-[#889397]">
-                      {subtreeCount(cat)} product{subtreeCount(cat) === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </section>

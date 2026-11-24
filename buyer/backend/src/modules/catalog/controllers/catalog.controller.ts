@@ -14,6 +14,8 @@ export const getPublicProductHandler = asyncHandler(async (req, res) => {
 
 export const listCategoryTreeHandler = asyncHandler(async (_req, res) => {
   const tree = await getCategoryTree();
-  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   return sendSuccess(res, { categories: tree });
 });

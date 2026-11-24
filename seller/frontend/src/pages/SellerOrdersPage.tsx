@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ShoppingBag,
@@ -415,8 +416,11 @@ export function SellerOrdersPage() {
                     </td>
 
                     <td className="px-4 py-3 text-center">
-                      <Badge tone={order.paymentStatus === 'PAID' ? 'success' : 'warning'} shape="chip">
-                        {order.paymentStatus}
+                      <Badge
+                        tone={order.paymentMethod === 'COD' ? 'brand' : order.paymentStatus === 'PAID' ? 'success' : 'warning'}
+                        shape="chip"
+                      >
+                        {order.paymentMethod === 'COD' ? 'COD' : 'ONLINE'}
                       </Badge>
                     </td>
 
@@ -547,9 +551,17 @@ export function SellerOrdersPage() {
       )}
 
       {/* Order Details Modal / Drawer */}
-      {selectedOrderId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-surface p-6 shadow-2xl border border-line admin-scrollbar">
+      {selectedOrderId &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedOrderId(null);
+              }
+            }}
+          >
+            <div className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-surface p-6 shadow-2xl border border-line admin-scrollbar">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-line pb-4">
               <div>
@@ -604,12 +616,23 @@ export function SellerOrdersPage() {
                   <div className="flex items-center gap-3">
                     <CreditCard className="h-5 w-5 text-emerald-600 shrink-0" />
                     <div>
-                      <p className="text-micro font-bold uppercase text-ink-400">Payment Status</p>
+                      <p className="text-micro font-bold uppercase text-ink-400">Payment</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <Badge tone={currentOrder.paymentStatus === 'PAID' ? 'success' : 'warning'}>
-                          {currentOrder.paymentStatus}
+                        <Badge
+                          tone={
+                            currentOrder.paymentMethod === 'COD'
+                              ? 'brand'
+                              : currentOrder.paymentStatus === 'PAID'
+                                ? 'success'
+                                : 'warning'
+                          }
+                        >
+                          {currentOrder.paymentMethod === 'COD'
+                            ? 'COD (Cash on Delivery)'
+                            : currentOrder.paymentStatus === 'PAID'
+                              ? 'ONLINE · PAID'
+                              : 'ONLINE · PENDING'}
                         </Badge>
-                        <span className="text-micro text-ink-500 font-mono">({currentOrder.paymentMethod})</span>
                       </div>
                     </div>
                   </div>
@@ -807,7 +830,8 @@ export function SellerOrdersPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Tax Invoice Modal */}

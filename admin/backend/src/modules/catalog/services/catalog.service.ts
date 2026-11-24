@@ -1,5 +1,5 @@
 import { ERROR_CODES } from '@haat/shared-contracts';
-import { AppError, AuditLog, Category, Product, SellerProfile, slugify } from '@haat/shared-backend';
+import { AppError, AuditLog, Category, Product, SellerProfile, slugify, realtimeEventBus } from '@haat/shared-backend';
 import { adminCatalogModel, type CatalogFilter } from '../models/catalog.model';
 
 export const adminCatalogService = {
@@ -103,6 +103,16 @@ export const adminCatalogService = {
       ipAddress: params.ipAddress ?? null,
     });
 
+    void realtimeEventBus.publishProductCreated({
+      productId: String(created._id),
+      sellerId: String(seller._id),
+      categoryId: String(category._id),
+      action: 'CREATED',
+      title: created.title,
+      slug: created.slug,
+      timestamp: new Date().toISOString(),
+    });
+
     return created;
   },
 
@@ -146,6 +156,16 @@ export const adminCatalogService = {
       ipAddress: params.ipAddress ?? null,
     });
 
+    void realtimeEventBus.publishProductUpdated({
+      productId: String(existing._id),
+      sellerId: String(existing.sellerId),
+      categoryId: existing.categoryId ? String(existing.categoryId) : undefined,
+      action: 'UPDATED',
+      title: existing.title,
+      slug: existing.slug,
+      timestamp: new Date().toISOString(),
+    });
+
     return existing;
   },
 
@@ -179,6 +199,15 @@ export const adminCatalogService = {
         sellerId: String(product.sellerId?._id || product.sellerId),
       },
       ipAddress: params.ipAddress ?? null,
+    });
+
+    void realtimeEventBus.publishProductUpdated({
+      productId: params.productId,
+      sellerId: String(product.sellerId?._id || product.sellerId),
+      action: 'UPDATED',
+      title: product.title,
+      slug: product.slug,
+      timestamp: new Date().toISOString(),
     });
 
     return updated;

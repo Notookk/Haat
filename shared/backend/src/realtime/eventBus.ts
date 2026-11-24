@@ -5,6 +5,15 @@ import {
   type SellerStatusChangedPayload,
   type CatalogVisibilityChangedPayload,
   type AdminSellerUpdatedPayload,
+  type ProductChangedPayload,
+  type CategoryChangedPayload,
+  type StoreUpdatedPayload,
+  type BuyerRegisteredPayload,
+  type BuyerUpdatedPayload,
+  type ChatBlockedPayload,
+  type ChatUnblockedPayload,
+  type ChatDeletedPayload,
+  type ChatMessagesDeletedPayload,
 } from '@haat/shared-contracts';
 import { env } from '../config/env';
 import { logger } from '../lib/logger';
@@ -34,8 +43,9 @@ export class RealtimeEventBus {
         const p = payload as SellerStatusChangedPayload;
         // Emit to private seller room
         this.io.to(SOCKET_ROOMS.sellerRoom(p.sellerId)).emit(SOCKET_EVENTS.SELLER_STATUS_CHANGED, p);
-        // Also emit to admin monitoring
+        // Also emit to admin monitoring and universal broadcast
         this.io.to(SOCKET_ROOMS.ADMIN_MONITORING).emit(SOCKET_EVENTS.SELLER_STATUS_CHANGED, p);
+        this.io.emit(SOCKET_EVENTS.SELLER_STATUS_CHANGED, p);
 
         // Specific sub-events for targeted frontend listener hooks
         if (p.newStatus === 'ACTIVE') {
@@ -73,12 +83,14 @@ export class RealtimeEventBus {
 
       case SOCKET_EVENTS.APPLICATION_CREATED: {
         this.io.to(SOCKET_ROOMS.ADMIN_MONITORING).emit(SOCKET_EVENTS.APPLICATION_CREATED, payload);
+        this.io.emit(SOCKET_EVENTS.APPLICATION_CREATED, payload);
         break;
       }
 
       case SOCKET_EVENTS.ADMIN_SELLER_UPDATED: {
         const p = payload as AdminSellerUpdatedPayload;
         this.io.to(SOCKET_ROOMS.ADMIN_MONITORING).emit(SOCKET_EVENTS.ADMIN_SELLER_UPDATED, p);
+        this.io.emit(SOCKET_EVENTS.ADMIN_SELLER_UPDATED, p);
         break;
       }
 
@@ -88,6 +100,7 @@ export class RealtimeEventBus {
           this.io.to(SOCKET_ROOMS.sellerRoom(p.sellerId)).emit(SOCKET_EVENTS.ORDER_CREATED, payload);
         }
         this.io.to(SOCKET_ROOMS.ADMIN_MONITORING).emit(SOCKET_EVENTS.ORDER_CREATED, payload);
+        this.io.emit(SOCKET_EVENTS.ORDER_CREATED, payload);
         break;
       }
 
@@ -100,6 +113,7 @@ export class RealtimeEventBus {
           this.io.to(SOCKET_ROOMS.buyerRoom(p.buyerId)).emit(SOCKET_EVENTS.ORDER_STATUS_CHANGED, payload);
         }
         this.io.to(SOCKET_ROOMS.ADMIN_MONITORING).emit(SOCKET_EVENTS.ORDER_STATUS_CHANGED, payload);
+        this.io.emit(SOCKET_EVENTS.ORDER_STATUS_CHANGED, payload);
         break;
       }
 
@@ -109,6 +123,53 @@ export class RealtimeEventBus {
           this.io.to(SOCKET_ROOMS.sellerRoom(p.sellerId)).emit(SOCKET_EVENTS.DELIVERY_SLOT_CAPACITY_UPDATED, payload);
         }
         this.io.to(SOCKET_ROOMS.CATALOG_PUBLIC).emit(SOCKET_EVENTS.DELIVERY_SLOT_CAPACITY_UPDATED, payload);
+        this.io.emit(SOCKET_EVENTS.DELIVERY_SLOT_CAPACITY_UPDATED, payload);
+        break;
+      }
+
+      case SOCKET_EVENTS.PRODUCT_CREATED:
+      case SOCKET_EVENTS.PRODUCT_UPDATED:
+      case SOCKET_EVENTS.PRODUCT_DELETED: {
+        const p = payload as ProductChangedPayload;
+        this.io.to(SOCKET_ROOMS.CATALOG_PUBLIC).emit(type, p);
+        if (p?.sellerId) {
+          this.io.to(SOCKET_ROOMS.sellerRoom(p.sellerId)).emit(type, p);
+        }
+        this.io.emit(type, p);
+        break;
+      }
+
+      case SOCKET_EVENTS.CATEGORY_CREATED:
+      case SOCKET_EVENTS.CATEGORY_UPDATED:
+      case SOCKET_EVENTS.CATEGORY_DELETED: {
+        const p = payload as CategoryChangedPayload;
+        this.io.to(SOCKET_ROOMS.CATALOG_PUBLIC).emit(type, p);
+        this.io.emit(type, p);
+        break;
+      }
+
+      case SOCKET_EVENTS.STORE_UPDATED: {
+        const p = payload as StoreUpdatedPayload;
+        this.io.to(SOCKET_ROOMS.CATALOG_PUBLIC).emit(type, p);
+        if (p?.sellerId) {
+          this.io.to(SOCKET_ROOMS.sellerRoom(p.sellerId)).emit(type, p);
+        }
+        this.io.emit(type, p);
+        break;
+      }
+
+      case SOCKET_EVENTS.BUYER_REGISTERED:
+      case SOCKET_EVENTS.BUYER_UPDATED: {
+        this.io.to(SOCKET_ROOMS.ADMIN_MONITORING).emit(type, payload);
+        this.io.emit(type, payload);
+        break;
+      }
+
+      case SOCKET_EVENTS.CHAT_BLOCKED:
+      case SOCKET_EVENTS.CHAT_UNBLOCKED:
+      case SOCKET_EVENTS.CHAT_DELETED:
+      case SOCKET_EVENTS.CHAT_MESSAGES_DELETED: {
+        this.io.emit(type, payload);
         break;
       }
 
@@ -190,6 +251,58 @@ export class RealtimeEventBus {
 
   async publishChatMessage(payload: any) {
     await this.publish('new_message', payload);
+  }
+
+  async publishProductCreated(payload: ProductChangedPayload) {
+    await this.publish(SOCKET_EVENTS.PRODUCT_CREATED, payload);
+  }
+
+  async publishProductUpdated(payload: ProductChangedPayload) {
+    await this.publish(SOCKET_EVENTS.PRODUCT_UPDATED, payload);
+  }
+
+  async publishProductDeleted(payload: ProductChangedPayload) {
+    await this.publish(SOCKET_EVENTS.PRODUCT_DELETED, payload);
+  }
+
+  async publishCategoryCreated(payload: CategoryChangedPayload) {
+    await this.publish(SOCKET_EVENTS.CATEGORY_CREATED, payload);
+  }
+
+  async publishCategoryUpdated(payload: CategoryChangedPayload) {
+    await this.publish(SOCKET_EVENTS.CATEGORY_UPDATED, payload);
+  }
+
+  async publishCategoryDeleted(payload: CategoryChangedPayload) {
+    await this.publish(SOCKET_EVENTS.CATEGORY_DELETED, payload);
+  }
+
+  async publishStoreUpdated(payload: StoreUpdatedPayload) {
+    await this.publish(SOCKET_EVENTS.STORE_UPDATED, payload);
+  }
+
+  async publishBuyerRegistered(payload: BuyerRegisteredPayload) {
+    await this.publish(SOCKET_EVENTS.BUYER_REGISTERED, payload);
+  }
+
+  async publishBuyerUpdated(payload: BuyerUpdatedPayload) {
+    await this.publish(SOCKET_EVENTS.BUYER_UPDATED, payload);
+  }
+
+  async publishChatBlocked(payload: ChatBlockedPayload) {
+    await this.publish(SOCKET_EVENTS.CHAT_BLOCKED, payload);
+  }
+
+  async publishChatUnblocked(payload: ChatUnblockedPayload) {
+    await this.publish(SOCKET_EVENTS.CHAT_UNBLOCKED, payload);
+  }
+
+  async publishChatDeleted(payload: ChatDeletedPayload) {
+    await this.publish(SOCKET_EVENTS.CHAT_DELETED, payload);
+  }
+
+  async publishChatMessagesDeleted(payload: ChatMessagesDeletedPayload) {
+    await this.publish(SOCKET_EVENTS.CHAT_MESSAGES_DELETED, payload);
   }
 }
 

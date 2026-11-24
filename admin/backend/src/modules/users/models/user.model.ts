@@ -34,7 +34,7 @@ export const adminUserModel = {
     const trustedQuery = mongoose.trusted(query);
 
     const [users, total] = await Promise.all([
-      User.find(trustedQuery).select('-passwordHash').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      User.find(trustedQuery).select('-passwordHash').sort({ createdAt: 1, _id: 1 }).skip(skip).limit(limit).lean(),
       User.countDocuments(trustedQuery),
     ]);
 

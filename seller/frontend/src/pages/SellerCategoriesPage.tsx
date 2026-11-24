@@ -45,6 +45,7 @@ interface CategoryItem {
   imageUrl?: string | null;
   imagePublicId?: string | null;
   isActive?: boolean;
+  createdAt?: string;
 }
 
 const newCategorySchema = z.object({
@@ -183,11 +184,18 @@ export function SellerCategoriesPage() {
 
   const categories = categoriesQuery.data || [];
 
-  const filteredCategories = categories.filter((cat) => {
-    if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase();
-    return cat.name.toLowerCase().includes(term) || cat.slug.toLowerCase().includes(term);
-  });
+  const filteredCategories = [...categories]
+    .filter((cat) => {
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
+      return cat.name.toLowerCase().includes(term) || cat.slug.toLowerCase().includes(term);
+    })
+    .sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return String(a._id).localeCompare(String(b._id));
+    });
 
   return (
     <div className="w-full space-y-6">

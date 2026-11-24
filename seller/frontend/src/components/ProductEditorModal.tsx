@@ -25,9 +25,9 @@ import {
   useMyProduct,
   useUpdateProduct,
   useSellerCategories,
-  useCreateCategory,
 } from '../features/products/api';
 import { ImagePicker } from './ImagePicker';
+import { AddCategoryModal } from './AddCategoryModal';
 
 interface ProductEditorModalProps {
   isOpen: boolean;
@@ -45,7 +45,6 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
   const existing = useMyProduct(isEdit ? productId! : undefined);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct(productId ?? '');
-  const createCategory = useCreateCategory();
 
   // Stable client-generated 24-char hex MongoDB ObjectId for new products to route Cloudinary images to Haat/<productId>/...
   const [newProductId, setNewProductId] = useState(() =>
@@ -54,10 +53,7 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
   const activeProductId = isEdit ? productId! : newProductId;
 
   const [serverError, setServerError] = useState<string | null>(null);
-  const [showCategoryCreator, setShowCategoryCreator] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatDesc, setNewCatDesc] = useState('');
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   const form = useForm<ProductEditorValues>({
     resolver: zodResolver(productEditorSchema),
@@ -88,7 +84,7 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
       lastGeneratedTitleRef.current = '';
     }
     setServerError(null);
-    setShowCategoryCreator(false);
+    setShowCategoryModal(false);
   }, [isOpen, isEdit, existing.data, reset]);
 
   const values = watch();
@@ -136,30 +132,6 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
       setValue('retailPriceRupees', discounted, { shouldValidate: false });
     }
   }, [totalPriceNum, discountPercentNum, setValue]);
-
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCatName.trim() || newCatName.trim().length < 2) {
-      showToast.error('Category Name', 'Please enter at least 2 characters for category name.');
-      return;
-    }
-    setIsCreatingCategory(true);
-    try {
-      const created = await createCategory.mutateAsync({
-        name: newCatName.trim(),
-        description: newCatDesc.trim() || undefined,
-      });
-      setValue('categoryId', created._id, { shouldValidate: true, shouldDirty: true });
-      showToast.success('Category Option Added', `"${created.name}" is now available and selected.`);
-      setNewCatName('');
-      setNewCatDesc('');
-      setShowCategoryCreator(false);
-    } catch (err) {
-      showToast.error('Failed to Add Category', errorMessage(err));
-    } finally {
-      setIsCreatingCategory(false);
-    }
-  };
 
   const onInvalid = (fieldErrors: typeof errors) => {
     const errorEntries = Object.entries(fieldErrors);
@@ -217,7 +189,14 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/75 animate-in fade-in duration-150">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/60 animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="relative w-full max-w-6xl max-h-[92vh] flex flex-col rounded-2xl bg-surface border border-line shadow-2xl overflow-hidden z-[10000]">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-line px-6 py-4 bg-surface-elevated shrink-0">
@@ -290,11 +269,11 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
                       </label>
                       <button
                         type="button"
-                        onClick={() => setShowCategoryCreator((v) => !v)}
-                        className="inline-flex items-center gap-1 text-micro font-bold text-brand-600 hover:text-brand-700 transition-colors cursor-pointer"
+                        onClick={() => setShowCategoryModal(true)}
+                        className="inline-flex items-center gap-1.5 text-micro font-bold text-brand-600 hover:text-brand-700 transition-colors cursor-pointer"
                       >
-                        <FolderPlus className="h-3.5 w-3.5" />
-                        <span>{showCategoryCreator ? 'Close' : '+ Add New Category'}</span>
+                        <FolderPlus className="h-4 w-4" />
+                        <span>+ Add New Category</span>
                       </button>
                     </div>
 
@@ -312,48 +291,6 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
                         ) : undefined,
                       }))}
                     />
-
-                    {showCategoryCreator && (
-                      <div className="rounded-lg border border-brand-200 bg-brand-50/70 p-3 space-y-2 animate-in fade-in duration-100">
-                        <span className="text-micro font-bold uppercase tracking-wider text-brand-800">
-                          Create Category
-                        </span>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <input
-                            type="text"
-                            value={newCatName}
-                            onChange={(e) => setNewCatName(e.target.value)}
-                            placeholder="Category Name"
-                            className="h-8 rounded-md border border-brand-300 bg-surface px-2.5 text-caption text-ink-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                          />
-                          <input
-                            type="text"
-                            value={newCatDesc}
-                            onChange={(e) => setNewCatDesc(e.target.value)}
-                            placeholder="Description (optional)"
-                            className="h-8 rounded-md border border-brand-300 bg-surface px-2.5 text-caption text-ink-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                          />
-                        </div>
-                        <div className="flex justify-end gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setShowCategoryCreator(false)}
-                            className="rounded-md border border-line bg-surface px-2.5 py-0.5 text-micro text-ink-600 cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isCreatingCategory || !newCatName.trim()}
-                            onClick={handleCreateCategory}
-                            className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-0.5 text-micro font-bold text-white hover:bg-brand-700 disabled:opacity-50 cursor-pointer"
-                          >
-                            <Check className="h-3 w-3" />
-                            <span>Add</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* 2. Product Description */}
@@ -530,6 +467,15 @@ export function ProductEditorModal({ isOpen, onClose, productId, onSuccess }: Pr
           </Button>
         </div>
       </div>
+
+      {/* Overlay Add Category Modal (outside form to avoid event bubbling) */}
+      <AddCategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        onCategoryCreated={(created) => {
+          setValue('categoryId', created._id, { shouldValidate: false, shouldDirty: true });
+        }}
+      />
     </div>,
     document.body,
   );
